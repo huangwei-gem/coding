@@ -279,7 +279,7 @@ def video_status(task_id):
 @app.route("/api/save-file", methods=["POST"])
 def save_file():
     """Download a remote URL to local uploads directory and return local URL."""
-    data = flask.request.get_json()
+    data = flask.request.get_json(silent=True) or {}
     url = data.get("url", "")
     if not url:
         return flask.jsonify({"error": "url required"}), 400
