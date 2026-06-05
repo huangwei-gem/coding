@@ -81,7 +81,7 @@ def curl_post(url, json_body, timeout=180):
                 return {"error": f"empty response from API{detail}"}, 502
 
             data = json.loads(resp_body)
-            if "error" in data:
+            if data.get("error"):
                 return data, 400
             return data, 200
         except subprocess.TimeoutExpired:
@@ -113,7 +113,7 @@ def curl_get(url, timeout=30):
         if not raw or not raw.strip():
             return {"error": "empty response from API"}, 502
         data = json.loads(raw)
-        if "error" in data:
+        if data.get("error"):
             return data, 400
         return data, 200
     except json.JSONDecodeError:
