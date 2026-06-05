@@ -613,7 +613,7 @@ document.getElementById('imageForm').addEventListener('submit', async (e) => {
       if (allData.error) throw new Error(typeof allData.error === 'string' ? allData.error : JSON.stringify(allData.error));
     }
     showImageResult(allData, req.type === 'json' ? req.data : { prompt: '图片生成' });
-    addHistory('image', req.type === 'json' ? (req.data.prompt || '') : '本地上传', allData);
+    await addHistory('image', req.type === 'json' ? (req.data.prompt || '') : '本地上传', allData);
   } catch (err) {
     if (err.name === 'AbortError') showError('请求超时，请稍后重试');
     else showError(err.message);
@@ -810,7 +810,7 @@ async function getAuthHeaders() {
 }
 
 async function apiFetch(url, opts = {}) {
-  const auth = getAuthHeaders();
+  const auth = await getAuthHeaders();
   if (auth['X-Agnes-Api-Key']) {
     opts.headers = { ...opts.headers, ...auth };
   }
@@ -860,6 +860,8 @@ async function addHistory(type, prompt, data) {
   if (history.length > 50) history.pop();
   localStorage.setItem('agnes_history', JSON.stringify(history));
   renderHistory();
+  // Auto-expand history panel
+  if (!historyOpen) toggleHistory();
 }
 
 function renderHistory() {
