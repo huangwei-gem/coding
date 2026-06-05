@@ -104,28 +104,12 @@
   .progress-fill { height: 100%; background: linear-gradient(90deg, var(--primary), var(--accent-blue)); border-radius: 3px; transition: width .5s ease; }
   .progress-text { font-size: 13px; color: var(--text-dim); text-align: center; }
   .history-section { margin-top: 24px; }
-  .settings-btn {
-    width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--border);
-    background: var(--surface2); color: var(--text-dim); cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    font-size: 14px; transition: all .2s; margin-left: auto; flex-shrink: 0;
+  .clear-history-btn {
+    font-size: 11px; color: var(--text-dim); cursor: pointer; padding: 2px 8px;
+    border-radius: 4px; border: 1px solid var(--border); background: transparent;
+    transition: all .2s; margin-left: auto;
   }
-  .settings-btn:hover { border-color: var(--primary-light); color: var(--text); }
-  .settings-dropdown {
-    position: absolute; right: 0; top: 100%; margin-top: 4px;
-    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
-    padding: 8px; min-width: 180px; z-index: 100;
-    box-shadow: 0 8px 24px rgba(0,0,0,.4); display: none;
-  }
-  .settings-dropdown.open { display: block; }
-  .settings-dropdown .sd-item {
-    padding: 8px 12px; border-radius: 6px; cursor: pointer;
-    font-size: 13px; color: var(--text-dim); transition: all .2s;
-    display: flex; align-items: center; gap: 8px; border: none; background: none; width: 100%;
-  }
-  .settings-dropdown .sd-item:hover { background: var(--surface2); color: var(--text); }
-  .settings-dropdown .sd-item.danger:hover { background: rgba(239,68,68,.15); color: #ef4444; }
-  .settings-dropdown .sd-divider { height: 1px; background: var(--border); margin: 4px 0; }
+  .clear-history-btn:hover { border-color: #ef4444; color: #ef4444; }
   .history-header {
     display: flex; align-items: center; gap: 8px; cursor: pointer;
     font-size: 14px; color: var(--text-dim); margin-bottom: 12px; user-select: none;
@@ -227,6 +211,10 @@
           <button type="button" class="preset-btn" data-prompt="未来城市集市，飞行汽车，全息招牌，赛博朋克风格">赛博朋克</button>
           <button type="button" class="preset-btn" data-prompt="一只可爱的柴犬在樱花树下睡觉，温暖的阳光">柴犬</button>
           <button type="button" class="preset-btn" data-prompt="A beautiful fantasy landscape with mountains, waterfalls, and a giant moon, digital art">Fantasy</button>
+          <button type="button" class="preset-btn" data-prompt="一位中国古风女子在月下抚琴，水墨画风格，唯美意境">水墨古风</button>
+          <button type="button" class="preset-btn" data-prompt="美食摄影，一盘精致的提拉米苏，俯拍，柔光，暖色调">美食</button>
+          <button type="button" class="preset-btn" data-prompt="太空宇航员在火星上行走，地球在背景中，史诗级科幻">科幻</button>
+          <button type="button" class="preset-btn" data-prompt="水彩风格的城市街景，雨天的街道，倒影，印象派">水彩街景</button>
         </div>
       </div>
       <div class="row">
@@ -282,6 +270,10 @@
           <button type="button" class="preset-btn" data-prompt="Drone footage of a futuristic city with flying cars, neon lights, cinematic">未来城市</button>
           <button type="button" class="preset-btn" data-prompt="Close up of a flower blooming in slow motion, nature documentary style">花开</button>
           <button type="button" class="preset-btn" data-prompt="一只在日落时分的海滩上散步的猫，电影感镜头，慢速摇镜">日落海滩（中文）</button>
+          <button type="button" class="preset-btn" data-prompt="Mountain waterfall drone flythrough, misty morning, golden sunlight, 4k cinematic">瀑布</button>
+          <button type="button" class="preset-btn" data-prompt="A dancer spinning in a futuristic neon-lit room, holographic effects, slow motion">舞蹈</button>
+          <button type="button" class="preset-btn" data-prompt="Time lapse of a bustling night market in Tokyo, neon signs, crowd moving, cinematic">夜市</button>
+          <button type="button" class="preset-btn" data-prompt="一只白鹭在晨雾中起飞，慢动作，中国水墨画风格">水墨白鹭（中文）</button>
         </div>
       </div>
       <div class="row">
@@ -353,12 +345,7 @@
         <span class="arrow" id="historyArrow">▼</span>
         <span>历史记录</span>
         <span id="historyCount" style="font-size:12px;color:var(--border)"></span>
-        <button class="settings-btn" onclick="event.stopPropagation();toggleSettings()" title="设置">⚙</button>
-        <div class="settings-dropdown" id="settingsDropdown">
-          <button class="sd-item" onclick="event.stopPropagation();showHistoryStats()">📊 查看存储统计</button>
-          <div class="sd-divider"></div>
-          <button class="sd-item danger" onclick="event.stopPropagation();confirmClear()">🗑 清除所有历史记录</button>
-        </div>
+        <button class="clear-history-btn" onclick="event.stopPropagation();confirmClear()">清除</button>
       </div>
       <div class="history-body" id="historyBody">
         <div id="historyList"></div>
@@ -564,6 +551,8 @@ document.getElementById('videoForm').addEventListener('submit', async (e) => {
 
 // ---- Video polling ----
 function showVideoProgress(taskId, params) {
+  // Clear any existing polling
+  if (pollingTimer) { clearTimeout(pollingTimer); pollingTimer = null; }
   const area = document.getElementById('resultContent');
   area.style.display = 'block';
   area.innerHTML = `
@@ -580,11 +569,13 @@ function showVideoProgress(taskId, params) {
 }
 
 async function pollVideo(taskId) {
+  let errorCount = 0;
   const fn = async () => {
     try {
       const res = await fetch(API_BASE + `/api/video-status/${taskId}`);
       const data = await res.json();
       if (data.error) throw new Error(data.error);
+      errorCount = 0;
       const progress = data.progress || 0;
       const status = data.status || 'unknown';
       const fill = document.getElementById('progressFill');
@@ -597,7 +588,24 @@ async function pollVideo(taskId) {
       if (status === 'completed') { showVideoResult(data, taskId); return; }
       if (status === 'failed') { showError('视频生成失败'); return; }
       pollingTimer = setTimeout(fn, 3000);
-    } catch (err) { showError('轮询失败: ' + err.message); }
+    } catch (err) {
+      errorCount++;
+      const text = document.getElementById('progressText');
+      if (text && errorCount < 5) {
+        text.textContent = `查询失败 (${errorCount}/5)，自动重试...`;
+        text.style.color = '#f59e0b';
+        pollingTimer = setTimeout(fn, 5000);
+      } else {
+        const area = document.getElementById('resultContent');
+        area.innerHTML = `
+          <div class="result-card" style="text-align:center;padding:40px">
+            <div style="font-size:40px;margin-bottom:12px">⚠️</div>
+            <div style="color:#ef4444;font-weight:600;margin-bottom:8px">轮询失败</div>
+            <div style="color:var(--text-dim);font-size:14px;margin-bottom:16px">${err.message}</div>
+            <button class="btn btn-secondary" onclick="showVideoProgress('${taskId}')" style="width:auto;display:inline-flex;padding:8px 24px">重新开始轮询</button>
+          </div>`;
+      }
+    }
   };
   await fn();
 }
@@ -643,7 +651,6 @@ function showPlaceholder() {
 
 // ---- History with local saving ----
 let historyOpen = false;
-let settingsOpen = false;
 
 function toggleHistory() {
   historyOpen = !historyOpen;
@@ -652,17 +659,6 @@ function toggleHistory() {
   body.classList.toggle('open', historyOpen);
   arrow.classList.toggle('collapsed', !historyOpen);
 }
-
-function toggleSettings() {
-  settingsOpen = !settingsOpen;
-  document.getElementById('settingsDropdown').classList.toggle('open', settingsOpen);
-}
-document.addEventListener('click', () => {
-  if (settingsOpen) {
-    settingsOpen = false;
-    document.getElementById('settingsDropdown').classList.remove('open');
-  }
-});
 
 async function saveFileLocally(url) {
   try {
@@ -777,21 +773,7 @@ function showHistoryItem(i) {
   }
 }
 
-function showHistoryStats() {
-  closeSettings();
-  const totalItems = history.length;
-  const localCount = history.filter(h => h.localUrls?.length > 0 || h.thumb?.startsWith('/static/')).length;
-  const msg = `共有 ${totalItems} 条历史记录\n其中 ${localCount} 条包含本地文件`;
-  alert(msg);
-}
-
-function closeSettings() {
-  settingsOpen = false;
-  document.getElementById('settingsDropdown').classList.remove('open');
-}
-
 async function confirmClear() {
-  closeSettings();
   if (!confirm('确定清除所有历史记录吗？\n本地保存的图片/视频文件也会被删除。')) return;
 
   // Clear local files via API

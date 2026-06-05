@@ -19,10 +19,23 @@ import flask
 app = flask.Flask(__name__)
 app.config["MAX_CONTENT_LENGTH"] = 16 * 1024 * 1024  # 16MB max upload
 
-API_KEY = os.environ.get("AGNES_API_KEY", "")
+# Runtime config (can be overridden via API or header)
+RUNTIME = {
+    "api_key": os.environ.get("AGNES_API_KEY", ""),
+}
 BASE_URL = "https://apihub.agnes-ai.com/v1"
 UPLOAD_DIR = os.path.join(os.path.dirname(__file__), "static", "uploads")
 os.makedirs(UPLOAD_DIR, exist_ok=True)
+
+
+def _get_api_key():
+    """Return the effective API key (header override > runtime config > env var)."""
+    # Check if request has an override header
+    if flask.has_request_context():
+        header_key = flask.request.headers.get("X-Agnes-Api-Key", "")
+        if header_key:
+            return header_key
+    return RUNTIME.get("api_key") or os.environ.get("AGNES_API_KEY", "")
 
 
 def curl_post(url, json_body, timeout=180):
