@@ -314,9 +314,9 @@ def save_file():
     filename = f"{uuid.uuid4()}{ext}"
     save_path = os.path.join(UPLOAD_DIR, filename)
 
-    # Download via curl
+    # Download via curl (follow redirects, allow 5 min for large videos)
     rc = subprocess.run(
-        ["curl", "-s", "-o", save_path, "--max-time", "60", url],
+        ["curl", "-sL", "-o", save_path, "--max-time", "300", url],
         capture_output=True
     )
     if rc.returncode != 0:

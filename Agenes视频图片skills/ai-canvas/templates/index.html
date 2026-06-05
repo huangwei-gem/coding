@@ -702,14 +702,22 @@ function showImageResult(data, params) {
   document.getElementById('placeholder').style.display = 'none';
 }
 
-function showVideoResult(data, taskId) {
-  const url = data.remixed_from_video_id || data.video_url || '';
+async function showVideoResult(data, taskId) {
+  const remoteUrl = data.remixed_from_video_id || data.video_url || '';
   const area = document.getElementById('resultContent');
   area.style.display = 'block';
+
+  // Save video locally so it plays inline (bypass CORS / Content-Disposition issues)
+  let localUrl = '';
+  if (remoteUrl) {
+    localUrl = await saveFileLocally(remoteUrl);
+  }
+
+  const playUrl = localUrl || remoteUrl;
   area.innerHTML = `
     <div class="result-card">
-      ${url ? `<video src="${url}" controls autoplay loop style="width:100%"></video>` : '<div style="padding:40px;text-align:center">视频 URL 未返回</div>'}
-      <div class="meta">${url ? `<a href="${url}" target="_blank">下载视频 →</a>` : ''}<span style="float:right">${data.seconds || '?'}秒 | ${data.size || '?'}</span></div>
+      ${playUrl ? `<video src="${playUrl}" controls autoplay muted loop playsinline style="width:100%"></video>` : '<div style="padding:40px;text-align:center">视频 URL 未返回</div>'}
+      <div class="meta">${remoteUrl ? `<a href="${remoteUrl}" target="_blank">下载原文件 →</a>` : ''}<span style="float:right">${data.seconds || '?'}秒 | ${data.size || '?'}</span></div>
     </div>`;
   document.getElementById('generateVideoBtn').disabled = false;
   document.getElementById('generateVideoBtn').textContent = '生成视频';
@@ -857,7 +865,7 @@ function showHistoryItem(i) {
     }
     area.innerHTML = `
       <div class="result-card">
-        ${url ? `<video src="${url}" controls autoplay loop style="width:100%"></video>` : '<div style="padding:40px;text-align:center">无视频文件</div>'}
+        ${url ? `<video src="${url}" controls autoplay muted loop playsinline style="width:100%"></video>` : '<div style="padding:40px;text-align:center">无视频文件</div>'}
         <div class="meta">
           ${url ? `<a href="${url}" target="_blank">下载视频 →</a>` : ''}
           <span style="float:right;font-size:11px;color:var(--text-dim)">${url.startsWith('/static/') ? '本地文件' : '外部链接'}</span>
