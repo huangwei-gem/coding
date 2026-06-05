@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Agnes AI 创作工坊 - 一键启动脚本"""
+"""Agnes AI 创作工坊 - 一键启动脚本（使用项目虚拟环境）"""
 
 import os
 import sys
@@ -17,6 +17,7 @@ if sys.platform == "win32":
 
 PROJECT_DIR = os.path.dirname(os.path.abspath(__file__))
 AI_CANVAS_DIR = os.path.join(PROJECT_DIR, "ai-canvas")
+VENV_DIR = os.path.join(PROJECT_DIR, "venv")
 LOG_FILE = os.path.join(os.environ.get("TEMP", "."), "agnes_web.log")
 
 
@@ -38,8 +39,8 @@ def run_raw(cmd):
             except UnicodeDecodeError:
                 return out.decode("gbk", errors="replace")
         return ""
-    except Exception as e:
-        return f""
+    except Exception:
+        return ""
 
 
 def port_in_use(port, host="127.0.0.1"):
@@ -67,6 +68,67 @@ def read_tail(path, n=5):
         return "(cannot read log)"
 
 
+def venv_python():
+    """Return the path to the venv's Python interpreter, or None."""
+    if sys.platform == "win32":
+        py = os.path.join(VENV_DIR, "Scripts", "python.exe")
+    else:
+        py = os.path.join(VENV_DIR, "bin", "python")
+    return py if os.path.exists(py) else None
+
+
+def ensure_venv():
+    """Create venv + install requirements if not already done.
+    Falls back to system Python if venv fails."""
+    # Check if existing venv has flask
+    py_exe = venv_python()
+    if py_exe:
+        check = subprocess.run([py_exe, "-c", "import flask"], capture_output=True)
+        if check.returncode == 0:
+            print_ok("Virtual environment ready")
+            return True
+        print_info("Venv exists but missing packages, recreating ...")
+        subprocess.run(["rm", "-rf", VENV_DIR] if sys.platform != "win32" else ["cmd", "/c", f"rmdir /s /q \"{VENV_DIR}\""],
+                       capture_output=True)
+
+    print_info("Creating virtual environment (with system packages) ...")
+    rc = subprocess.run(
+        [sys.executable, "-m", "venv", "--system-site-packages", VENV_DIR],
+        capture_output=True
+    )
+    if rc.returncode != 0:
+        err = rc.stderr.decode("gbk", errors="replace") if rc.stderr else ""
+        print_err(f"Failed to create venv: {err.strip()}")
+        return False
+
+    # Try to pip install requirements (optional, system packages may be enough)
+    if sys.platform == "win32":
+        pip_exe = os.path.join(VENV_DIR, "Scripts", "pip.exe")
+    else:
+        pip_exe = os.path.join(VENV_DIR, "bin", "pip")
+    req_file = os.path.join(PROJECT_DIR, "requirements.txt")
+    if os.path.exists(pip_exe) and os.path.exists(req_file):
+        print_info("Installing dependencies ...")
+        rc2 = subprocess.run(
+            [pip_exe, "install", "-r", req_file, "-q"],
+            capture_output=True
+        )
+        if rc2.returncode == 0:
+            print_ok("Dependencies installed")
+        else:
+            print_info("pip install skipped (using system packages)")
+
+    py_exe = venv_python()
+    if py_exe:
+        check = subprocess.run([py_exe, "-c", "import flask"], capture_output=True)
+        if check.returncode == 0:
+            print_ok("Virtual environment ready")
+            return True
+
+    print_err("Venv created but flask not available")
+    return False
+
+
 def main():
     print("=" * 47)
     print("  Agnes AI -- chuang zuo gong fang")
@@ -81,25 +143,9 @@ def main():
         sys.exit(1)
     print_ok(f"Python {sys.version.split()[0]}")
 
-    # ── 2. 检查依赖 ──
-    print_step(2, "Check dependencies")
-
-    deps = {"flask": "flask", "requests": "requests"}
-    for mod, pkg in deps.items():
-        try:
-            __import__(mod)
-            print_ok(f"{pkg} ready")
-        except ImportError:
-            print_info(f"Installing {pkg} ...")
-            rc = subprocess.run(
-                [sys.executable, "-m", "pip", "install", pkg, "-q"],
-                capture_output=True
-            ).returncode
-            if rc != 0:
-                print_err(f"Install failed: {pkg}")
-                input("\nPress Enter to exit ...")
-                sys.exit(1)
-            print_ok(f"{pkg} installed")
+    # ── 2. 虚拟环境 ──
+    print_step(2, "Virtual environment")
+    venv_ok = ensure_venv()
 
     # ── 3. 检查 API Key ──
     print_step(3, "Check API key")
@@ -128,6 +174,10 @@ def main():
         kill_port(5000)
         time.sleep(1)
 
+    # 选择 Python
+    py_exe = venv_python() if venv_ok else sys.executable
+    print_info(f"Using: {py_exe}")
+
     os.chdir(AI_CANVAS_DIR)
     env = os.environ.copy()
     if api_key:
@@ -135,7 +185,7 @@ def main():
 
     with open(LOG_FILE, "w", encoding="utf-8") as log:
         proc = subprocess.Popen(
-            [sys.executable, "app.py"],
+            [py_exe, "app.py"],
             stdout=log, stderr=subprocess.STDOUT,
             env=env, cwd=AI_CANVAS_DIR
         )

@@ -5,14 +5,12 @@ Uses curl subprocess for reliable API access (Python SSL has issues on this env)
 
 import base64
 import json
+import mimetypes
 import os
 import re
-import shutil
 import subprocess
 import sys
-import tempfile
 import uuid
-from pathlib import Path
 
 import flask
 
@@ -39,31 +37,50 @@ def _get_api_key():
 
 
 def curl_post(url, json_body, timeout=180):
-    """Call Agnes API via curl subprocess. Retries once on timeout/error."""
+    """Call Agnes API via curl subprocess. Retries once on timeout/error.
+    Uses stdin pipe (-d @-) to avoid Windows command-line length limits."""
     body_str = json.dumps(json_body)
     errors = []
     for attempt in range(2):
+        http_code = "000"
         cmd = [
             "curl", "-s", "--max-time", str(timeout),
-            "--retry", "1",
-            "-H", f"Authorization: Bearer {API_KEY}",
+            "-w", "\n%{http_code}",
+            "-H", f"Authorization: Bearer {_get_api_key()}",
             "-H", "Content-Type: application/json",
-            "-d", body_str,
+            "-d", "@-",
             url
         ]
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout + 15)
+            result = subprocess.run(cmd, input=body_str, capture_output=True, text=True, timeout=timeout + 15)
+            stdout = result.stdout or ""
+            stderr = result.stderr.strip() if result.stderr else ""
+
+            # Split body and HTTP status code (last line after -w)
+            lines = stdout.rstrip().split("\n")
+            http_code = lines[-1].strip() if len(lines) > 1 else "000"
+            resp_body = "\n".join(lines[:-1]) if len(lines) > 1 else stdout
+
             if result.returncode != 0:
                 msg = f"curl error (code {result.returncode})"
-                if result.stderr.strip():
-                    msg += f": {result.stderr.strip()}"
-                # On timeout (28), retry
+                if stderr:
+                    msg += f": {stderr}"
                 if result.returncode == 28 and attempt == 0:
                     errors.append(msg)
                     print(f"[api] Attempt {attempt+1} timed out, retrying...", flush=True)
                     continue
                 return {"error": msg}, 502
-            data = json.loads(result.stdout)
+
+            if not resp_body or not resp_body.strip():
+                detail = f" (HTTP {http_code}"
+                detail += f", stderr: {stderr}" if stderr else ")"
+                if attempt == 0:
+                    errors.append(f"empty response{detail}")
+                    print(f"[api] Attempt {attempt+1} got empty response{detail}, retrying...", flush=True)
+                    continue
+                return {"error": f"empty response from API{detail}"}, 502
+
+            data = json.loads(resp_body)
             if "error" in data:
                 return data, 400
             return data, 200
@@ -75,7 +92,7 @@ def curl_post(url, json_body, timeout=180):
                 continue
             return {"error": msg}, 504
         except json.JSONDecodeError as e:
-            return {"error": f"Invalid response: {e}"}, 502
+            return {"error": f"Invalid response: {e} (HTTP {http_code})"}, 502
         except Exception as e:
             return {"error": str(e)}, 500
     return {"error": "; ".join(errors)}, 502
@@ -85,43 +102,40 @@ def curl_get(url, timeout=30):
     """Call Agnes API GET via curl subprocess."""
     cmd = [
         "curl", "-s", "--max-time", str(timeout),
-        "-H", f"Authorization: Bearer {API_KEY}",
+        "-H", f"Authorization: Bearer {_get_api_key()}",
         url
     ]
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout + 10)
         if result.returncode != 0:
-            return {"error": f"curl error (code {result.returncode}): {result.stderr}"}, 502
-        data = json.loads(result.stdout)
+            return {"error": f"curl error (code {result.returncode})"}, 502
+        raw = result.stdout
+        if not raw or not raw.strip():
+            return {"error": "empty response from API"}, 502
+        data = json.loads(raw)
         if "error" in data:
             return data, 400
         return data, 200
+    except json.JSONDecodeError:
+        return {"error": "invalid JSON response from API"}, 502
     except Exception as e:
         return {"error": str(e)}, 500
 
 
-def upload_to_hosting(file_path):
-    """Upload a file to litterbox.catbox.moe via curl, return public URL or None.
-    Retries once on failure."""
-    for attempt in range(2):
-        cmd = [
-            "curl", "-s", "--max-time", "30",
-            "--retry", "1",
-            "-F", "reqtype=fileupload",
-            "-F", "time=1h",
-            "-F", f"fileToUpload=@{file_path}",
-            "https://litterbox.catbox.moe/resources/internals/api.php"
-        ]
-        try:
-            result = subprocess.run(cmd, capture_output=True, text=True, timeout=40)
-            if result.returncode == 0 and result.stdout.strip():
-                url = result.stdout.strip()
-                if url.startswith("http"):
-                    return url
-        except Exception:
-            pass
-        print(f"[upload] Attempt {attempt+1} failed for {file_path}", flush=True)
-    return None
+def file_to_data_url(file_storage):
+    """Convert a Flask FileStorage to a base64 data URL.
+    Returns data URL string or None on failure."""
+    try:
+        raw = file_storage.read()
+        file_storage.seek(0)
+        mime_type, _ = mimetypes.guess_type(file_storage.filename)
+        if not mime_type:
+            mime_type = "image/png"
+        b64_str = base64.b64encode(raw).decode("ascii")
+        return f"data:{mime_type};base64,{b64_str}"
+    except Exception as e:
+        print(f"[upload] Failed to convert {file_storage.filename} to data URL: {e}", flush=True)
+        return None
 
 
 @app.route("/")
@@ -165,29 +179,24 @@ def handle_image_upload():
     body = {"model": model, "prompt": prompt, "size": size, "n": n}
 
     if image_files and image_files[0].filename:
-        uploaded_urls = []
+        data_urls = []
         for f in image_files:
-            ext = os.path.splitext(f.filename)[1] or ".png"
-            filename = f"{uuid.uuid4()}{ext}"
-            save_path = os.path.join(UPLOAD_DIR, filename)
-            f.save(save_path)
-            print(f"[upload] Saved {save_path}", flush=True)
-
-            public_url = upload_to_hosting(save_path)
-            if public_url:
-                uploaded_urls.append(public_url)
-                print(f"[upload] Got public URL: {public_url}", flush=True)
+            print(f"[upload] Processing {f.filename}", flush=True)
+            data_url = file_to_data_url(f)
+            if data_url:
+                data_urls.append(data_url)
+                print(f"[upload] Converted {f.filename} to data URL ({len(data_url)} chars)", flush=True)
             else:
-                print(f"[upload] Failed to upload {save_path}", flush=True)
+                print(f"[upload] Failed to convert {f.filename}", flush=True)
 
-        if uploaded_urls:
+        if data_urls:
             body["extra_body"] = {
                 "tags": ["img2img"],
-                "image": uploaded_urls,
+                "image": data_urls,
                 "response_format": "url"
             }
         else:
-            return {"error": "图片上传失败，无法获取公网 URL。请尝试使用 URL 模式输入图片链接。"}, 400
+            return {"error": "图片转换失败，无法读取文件内容。请尝试使用 URL 模式输入图片链接。"}, 400
 
     result, status = curl_post(f"{BASE_URL}/images/generations", body)
     return flask.jsonify(result), status
@@ -259,25 +268,20 @@ def handle_video_upload():
         body["negative_prompt"] = negative_prompt
 
     if image_files and image_files[0].filename:
-        uploaded_urls = []
+        data_urls = []
         for f in image_files:
-            ext = os.path.splitext(f.filename)[1] or ".png"
-            filename = f"{uuid.uuid4()}{ext}"
-            save_path = os.path.join(UPLOAD_DIR, filename)
-            f.save(save_path)
-            print(f"[upload] Saved {save_path}", flush=True)
-
-            public_url = upload_to_hosting(save_path)
-            if public_url:
-                uploaded_urls.append(public_url)
-                print(f"[upload] Got public URL: {public_url}", flush=True)
+            print(f"[upload] Processing {f.filename}", flush=True)
+            data_url = file_to_data_url(f)
+            if data_url:
+                data_urls.append(data_url)
+                print(f"[upload] Converted {f.filename} to data URL ({len(data_url)} chars)", flush=True)
             else:
-                print(f"[upload] Failed to upload {save_path}", flush=True)
+                print(f"[upload] Failed to convert {f.filename}", flush=True)
 
-        if uploaded_urls:
-            body["image"] = uploaded_urls if len(uploaded_urls) > 1 else uploaded_urls[0]
+        if data_urls:
+            body["image"] = data_urls if len(data_urls) > 1 else data_urls[0]
         else:
-            return {"error": "图片上传失败，无法获取公网 URL。请尝试使用 URL 模式输入图片链接。"}, 400
+            return {"error": "图片转换失败，无法读取文件内容。请尝试使用 URL 模式输入图片链接。"}, 400
 
     result, status = curl_post(f"{BASE_URL}/videos", body, timeout=120)
     return flask.jsonify(result), status
@@ -338,7 +342,23 @@ def clear_files():
     return flask.jsonify({"deleted": deleted})
 
 
+@app.route("/api/config", methods=["GET", "POST"])
+def api_config():
+    """Get or set runtime configuration."""
+    if flask.request.method == "GET":
+        return flask.jsonify({
+            "has_api_key": bool(_get_api_key()),
+            "api_key_set_via": "header" if flask.request.headers.get("X-Agnes-Api-Key") else ("runtime" if RUNTIME.get("api_key") else "env"),
+        })
+    data = flask.request.get_json(silent=True) or {}
+    changed = []
+    if "api_key" in data:
+        RUNTIME["api_key"] = data["api_key"]
+        changed.append("api_key")
+    return flask.jsonify({"ok": True, "changed": changed})
+
+
 if __name__ == "__main__":
-    if not API_KEY:
+    if not _get_api_key():
         print("Warning: AGNES_API_KEY not set", file=sys.stderr)
-    app.run(host="127.0.0.1", port=5000, debug=True)
+    app.run(host="127.0.0.1", port=5000, debug=True, use_reloader=False, threaded=True)
