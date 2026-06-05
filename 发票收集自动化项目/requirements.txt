@@ -1,0 +1,14 @@
+# 核心依赖
+pandas>=1.5.0
+openpyxl>=3.0.0
+pymysql>=1.0.0
+requests>=2.28.0
+APScheduler>=3.10.0
+python-dotenv>=1.0.0
+loguru>=0.7.0
+
+# AI API
+openai>=1.0.0
+
+# 可视化报表（可选）
+matplotlib>=3.7.0

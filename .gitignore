@@ -1,0 +1,14 @@
+# Claude
+.claude/
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+.env
+.env.local
+logs/
+
+# OS
+.DS_Store
+Thumbs.db

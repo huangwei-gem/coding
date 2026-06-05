@@ -1,0 +1,1657 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>教师违禁词筛选器 V4.0 - 智能教学风控系统</title>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+<style>
+:root {
+  --p: #4f46e5; --pl: #eef2ff; --d: #ef4444; --dl: #fef2f2;
+  --w: #f59e0b; --wl: #fffbeb; --s: #10b981; --sl: #f0fdf4;
+  --g50: #f9fafb; --g100: #f3f4f6; --g200: #e5e7eb; --g300: #d1d5db;
+  --g400: #9ca3af; --g500: #6b7280; --g600: #4b5563; --g700: #374151;
+  --g800: #1f2937; --g900: #111827;
+  --r: 12px; --sh: 0 1px 3px rgba(0,0,0,0.06); --shl: 0 4px 24px rgba(0,0,0,0.1);
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;background:var(--g50);color:var(--g800);line-height:1.6;min-height:100vh}
+.header{background:linear-gradient(135deg,#4f46e5 0%,#7c3aed 100%);color:#fff;padding:18px 32px;box-shadow:var(--shl);position:sticky;top:0;z-index:100}
+.header-inner{max-width:1440px;margin:0 auto;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+.header h1{font-size:20px;font-weight:700;display:flex;align-items:center;gap:8px}
+.header .sub{font-size:12px;opacity:.85}
+.header-actions{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.bdg{background:rgba(255,255,255,.18);padding:3px 12px;border-radius:20px;font-size:11px}
+.bdg-outline{background:transparent;border:1px solid rgba(255,255,255,.3)}
+.container{max-width:1440px;margin:0 auto;padding:20px}
+.tabs{display:flex;gap:3px;background:#fff;border-radius:var(--r);padding:4px;box-shadow:var(--sh);margin-bottom:20px;overflow-x:auto;flex-wrap:nowrap}
+.tab-btn{padding:8px 16px;border:none;background:transparent;border-radius:8px;cursor:pointer;font-size:13px;font-weight:500;color:var(--g500);transition:all .2s;white-space:nowrap;display:flex;align-items:center;gap:5px}
+.tab-btn:hover{color:var(--g700);background:var(--g100)}
+.tab-btn.active{color:#fff;background:var(--p);box-shadow:0 2px 8px rgba(79,70,229,.3)}
+.tab-bdg{background:var(--g200);color:var(--g600);padding:0 7px;border-radius:10px;font-size:10px;font-weight:600}
+.tab-btn.active .tab-bdg{background:rgba(255,255,255,.25);color:#fff}
+.tab-c{display:none}.tab-c.active{display:block}
+.card{background:#fff;border-radius:var(--r);box-shadow:var(--sh);padding:20px;margin-bottom:18px;border:1px solid var(--g200)}
+.card-hd{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid var(--g100);flex-wrap:wrap;gap:8px}
+.card-tt{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
+textarea,input,select{font-family:inherit;font-size:14px;border:1.5px solid var(--g200);border-radius:8px;padding:9px 12px;transition:border-color .2s,box-shadow .2s;outline:none;width:100%;background:#fff}
+textarea:focus,input:focus,select:focus{border-color:var(--p);box-shadow:0 0 0 3px rgba(79,70,229,.1)}
+textarea{resize:vertical;min-height:80px}
+textarea#checkInput{min-height:180px;font-size:15px}
+.fg{margin-bottom:12px}
+.fg label{display:block;font-size:12px;font-weight:600;color:var(--g700);margin-bottom:3px}
+.fr{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.fr3{display:grid;grid-template-columns:auto 1fr auto;gap:10px}
+.fr4{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}
+@media(max-width:768px){.fr,.fr3,.fr4{grid-template-columns:1fr}}
+.btn{padding:8px 18px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;transition:all .2s;display:inline-flex;align-items:center;gap:5px;white-space:nowrap}
+.btn:active{transform:scale(.97)}
+.btn-p{background:var(--p);color:#fff}
+.btn-p:hover{background:#4338ca;box-shadow:0 2px 12px rgba(79,70,229,.3)}
+.btn-d{background:var(--d);color:#fff}
+.btn-d:hover{background:#dc2626}
+.btn-w{background:var(--w);color:#fff}
+.btn-w:hover{background:#d97706}
+.btn-s{background:var(--s);color:#fff}
+.btn-s:hover{background:#059669}
+.btn-o{background:transparent;color:var(--g600);border:1.5px solid var(--g200)}
+.btn-o:hover{background:var(--g50);border-color:var(--g300)}
+.btn-sm{padding:5px 12px;font-size:12px}
+.btn-xs{padding:3px 8px;font-size:11px;border-radius:5px}
+.btn-xxs{padding:2px 6px;font-size:10px;border-radius:4px}
+.rb{padding:14px 18px;border-radius:var(--r);margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;font-weight:600;flex-wrap:wrap;gap:8px}
+.rb.pass{background:var(--sl);color:#065f46;border:1px solid #a7f3d0}
+.rb.warn{background:var(--wl);color:#92400e;border:1px solid #fde68a}
+.rb.danger{background:var(--dl);color:#991b1b;border:1px solid #fecaca}
+.rb .rs{display:flex;gap:16px;font-weight:500}
+.hl{border-radius:8px;padding:14px;white-space:pre-wrap;word-wrap:break-word;font-size:14px;line-height:1.8;min-height:50px;max-height:350px;overflow-y:auto;background:var(--g50);border:1.5px solid var(--g200)}
+.hl .h{display:inline;padding:1px 4px;border-radius:3px;cursor:help}
+.hl .h0{background:#fecaca;color:#991b1b;border-bottom:2px solid var(--d)}
+.hl .h1{background:#fde68a;color:#92400e;border-bottom:2px solid var(--w)}
+.hl .h2{background:#dbeafe;color:#1e40af;border-bottom:2px solid #3b82f6}
+.hl .h3{background:#fce7f3;color:#9d174d;border-bottom:2px solid #ec4899}
+.hl .h4{background:#e0e7ff;color:#3730a3;border-bottom:2px solid #6366f1}
+.hl .h5{background:#f3e8ff;color:#6b21a8;border-bottom:2px solid #a855f7}
+.hl .h-nlp{background:#ecfdf5;color:#065f46;border-bottom:2px dashed var(--s);font-style:italic}
+.hl .h-sem{background:#fff7ed;color:#9a3412;border-bottom:2px dashed var(--w)}
+
+.vi{display:flex;align-items:center;gap:8px;padding:6px 10px;border-radius:6px;margin-bottom:3px;font-size:13px;background:var(--g50);flex-wrap:wrap}
+.vi .vt{padding:1px 8px;border-radius:4px;font-size:10px;font-weight:600;white-space:nowrap;min-width:48px;text-align:center}
+.vt.t-pol{background:#fce7f3;color:#9d174d}
+.vt.t-eth{background:#fef3c7;color:#92400e}
+.vt.t-ad{background:#dbeafe;color:#1e40af}
+.vt.t-vul{background:#fce7f3;color:#9d174d}
+.vt.t-tea{background:#e0e7ff;color:#3730a3}
+.vt.t-cus{background:#f3e8ff;color:#6b21a8}
+.vt.t-nlp{background:#ecfdf5;color:#065f46}
+.vt.t-sem{background:#fff7ed;color:#9a3412}
+.vi .vw{font-weight:700;color:var(--d);min-width:50px}
+.vi .vc{color:var(--g500);font-size:11px;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:60px}
+.vi .vs{font-size:10px;padding:1px 6px;border-radius:4px;font-weight:600}
+.vs.sh{background:#fecaca;color:#991b1b}
+.vs.sm{background:#fde68a;color:#92400e}
+.vs.sl{background:#dbeafe;color:#1e40af}
+
+.ct{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.ct label{padding:5px 12px;border-radius:20px;font-size:12px;font-weight:500;cursor:pointer;border:1.5px solid var(--g200);transition:all .2s;user-select:none;display:flex;align-items:center;gap:5px}
+.ct label:hover{border-color:var(--p)}
+.ct input{display:none}
+.ct label:has(input:checked){background:var(--pl);border-color:var(--p);color:var(--p)}
+.cb{background:var(--g100);padding:0 7px;border-radius:10px;font-size:10px}
+.ct label:has(input:checked) .cb{background:rgba(79,70,229,.12);color:var(--p)}
+
+.wg{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:3px}
+.wt{display:inline-flex;align-items:center;gap:3px;padding:3px 8px;background:var(--g50);border-radius:5px;font-size:12px;color:var(--g700);border:1px solid var(--g100)}
+.tw{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:13px}
+th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--g100)}
+th{font-weight:600;color:var(--g500);font-size:11px;letter-spacing:.3px;background:var(--g50)}
+tr:hover td{background:var(--g50)}
+.sg{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:14px;margin-bottom:18px}
+.sc{background:#fff;border-radius:var(--r);padding:18px;text-align:center;border:1px solid var(--g200);box-shadow:var(--sh)}
+.sc .sn{font-size:28px;font-weight:700;color:var(--p)}
+.sc .sl{font-size:12px;color:var(--g500);margin-top:3px}
+.sc.sr .sn{color:var(--d)}
+.sc.sg2 .sn{color:var(--s)}
+.sc.sy .sn{color:var(--w)}
+.sc.strend .sn{font-size:20px}
+
+.chb{height:180px;display:flex;align-items:flex-end;gap:6px;padding:0 2px 24px}
+.chb .bar{flex:1;border-radius:3px 3px 0 0;position:relative;min-height:3px;transition:height .5s;cursor:pointer}
+.chb .bar .bv{position:absolute;top:-18px;left:50%;transform:translateX(-50%);font-size:11px;font-weight:600}
+.chb .bar .bl{position:absolute;bottom:-20px;left:50%;transform:translateX(-50%);font-size:10px;color:var(--g500);white-space:nowrap}
+
+.modal-o{display:none;position:fixed;inset:0;background:rgba(0,0,0,.4);z-index:999;align-items:center;justify-content:center;backdrop-filter:blur(3px)}
+.modal-o.show{display:flex}
+.modal{background:#fff;border-radius:var(--r);padding:24px;width:92%;max-width:540px;max-height:85vh;overflow-y:auto;box-shadow:var(--shl);animation:mi .2s ease}
+@keyframes mi{from{opacity:0;transform:scale(.95) translateY(10px)}to{opacity:1;transform:scale(1) translateY(0)}}
+.modal h3{font-size:17px;margin-bottom:14px}
+.modal-actions{display:flex;gap:10px;justify-content:flex-end;margin-top:18px;flex-wrap:wrap}
+
+.toast{position:fixed;bottom:24px;right:24px;background:var(--g900);color:#fff;padding:10px 22px;border-radius:10px;font-size:13px;z-index:9999;box-shadow:var(--shl);animation:ti .3s ease;max-width:380px}
+@keyframes ti{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+.es{text-align:center;padding:36px 16px;color:var(--g400)}
+.es .ei{font-size:40px;margin-bottom:10px}
+.es p{font-size:13px}
+
+.sg{background:var(--pl);border:1px solid #c7d2fe;border-radius:8px;padding:12px 16px;margin-top:10px;font-size:13px;line-height:1.7}
+.sgg{background:var(--sl);border-color:#a7f3d0}
+.sgr{background:var(--dl);border-color:#fecaca}
+
+@media(max-width:768px){
+  .container{padding:10px}.header{padding:14px}.header h1{font-size:16px}
+  .card{padding:14px}.sg{grid-template-columns:1fr 1fr}
+  .tab-btn{padding:6px 10px;font-size:11px}.rb{flex-direction:column;text-align:center}
+  .rb .rs{flex-wrap:wrap;justify-content:center}
+}
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--g300);border-radius:3px}
+@media print{.header,.tabs,.btn,.qa{display:none}.tab-c{display:block!important}.card{break-inside:avoid;box-shadow:none;border:1px solid #ddd}}
+
+.role-switch{display:flex;gap:4px;background:rgba(255,255,255,.1);border-radius:8px;padding:3px}
+.role-btn{padding:4px 12px;border:none;border-radius:6px;cursor:pointer;font-size:11px;color:rgba(255,255,255,.7);background:transparent;transition:all .2s}
+.role-btn.active{background:rgba(255,255,255,.2);color:#fff;font-weight:600}
+.role-indicator{display:none}
+
+.alert-banner{background:var(--dl);border:1px solid #fecaca;border-radius:8px;padding:10px 14px;margin-bottom:12px;display:flex;align-items:center;gap:10px;font-size:13px;color:#991b1b}
+.alert-banner.ok{background:var(--sl);border-color:#a7f3d0;color:#065f46}
+.alert-banner.warn{background:var(--wl);border-color:#fde68a;color:#92400e}
+
+.progress{height:6px;background:var(--g100);border-radius:3px;overflow:hidden;margin-top:8px}
+.progress-bar{height:100%;border-radius:3px;transition:width .5s}
+.progress-bar.green{background:var(--s)}
+.progress-bar.yellow{background:var(--w)}
+.progress-bar.red{background:var(--d)}
+
+.trend-line{display:flex;align-items:flex-end;gap:2px;height:60px;padding:0 2px}
+.trend-bar{width:100%;border-radius:2px 2px 0 0;min-height:2px;transition:height .3s}
+.trend-label{font-size:9px;color:var(--g400);text-align:center;margin-top:2px}
+
+.ocr-area{border:2px dashed var(--g200);border-radius:8px;padding:30px;text-align:center;cursor:pointer;transition:all .2s;background:var(--g50)}
+.ocr-area:hover{border-color:var(--p);background:var(--pl)}
+.ocr-area.dragover{border-color:var(--p);background:var(--pl)}
+
+.asr-btn{width:44px;height:44px;border-radius:50%;border:none;cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:20px;transition:all .2s}
+.asr-btn.idle{background:var(--g100);color:var(--g500)}
+.asr-btn.listening{background:var(--dl);color:var(--d);animation:pulse 1.2s infinite}
+@keyframes pulse{0%{box-shadow:0 0 0 0 rgba(239,68,68,.4)}70%{box-shadow:0 0 0 12px rgba(239,68,68,0)}100%{box-shadow:0 0 0 0 rgba(239,68,68,0)}}
+.asr-btn:hover{transform:scale(1.05)}
+
+.badge-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:4px}
+.badge-dot.red{background:var(--d)}
+.badge-dot.yellow{background:var(--w)}
+.badge-dot.green{background:var(--s)}
+
+.sql{max-height:250px;overflow-y:auto;background:var(--g50);border-radius:6px;padding:10px;font-size:12px;line-height:1.7}
+</style>
+</head>
+<body>
+
+<header class="header">
+  <div class="header-inner">
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+      <div>
+        <h1>&#128220; 教师违禁词筛选器 <span style="font-size:11px;font-weight:400;opacity:.7;">V4.0</span></h1>
+        <div class="sub">智能教学风控系统 &middot; 文本/NLP/OCR/ASR 全场景检测</div>
+      </div>
+    </div>
+    <div class="header-actions">
+      <div class="role-switch">
+        <button class="role-btn active" data-role="admin" onclick="setRole('admin')">&#128188; 管理员</button>
+        <button class="role-btn" data-role="teacher" onclick="setRole('teacher')">&#127891; 教师端</button>
+      </div>
+      <span class="bdg" id="wordCountBadge">0 个违禁词</span>
+      <span class="bdg bdg-outline" id="engineBadge">规则+NLP+语义</span>
+    </div>
+  </div>
+</header>
+
+<div class="container">
+
+<!-- Alert Banner -->
+<div id="alertBanner" style="display:none;"></div>
+
+<div class="tabs" role="tablist">
+  <button class="tab-btn active" data-tab="check">&#128270; 文本检测</button>
+  <button class="tab-btn" data-tab="nlp">&#129302; NLP引擎</button>
+  <button class="tab-btn" data-tab="media">&#128247; 图片/语音</button>
+  <button class="tab-btn" data-tab="library">&#128218; 词库 <span class="tab-bdg" id="libBadge">0</span></button>
+  <button class="tab-btn" data-tab="review">&#128221; 复核 <span class="tab-bdg" id="reviewBadge">0</span></button>
+  <button class="tab-btn" data-tab="history">&#128203; 历史 <span class="tab-bdg" id="historyBadge">0</span></button>
+  <button class="tab-btn" data-tab="stats">&#128200; 看板</button>
+</div>
+
+<!-- ==================== TAB: CHECK ==================== -->
+<div class="tab-c active" id="tab-check">
+  <div class="card">
+    <div class="card-hd">
+      <div class="card-tt">&#128221; 输入检测文本</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap;">
+        <button class="btn btn-o btn-sm" onclick="loadSample()">&#128196; 示例</button>
+        <button class="btn btn-o btn-sm" onclick="clearInput()">&#128465; 清空</button>
+      </div>
+    </div>
+    <div class="fg">
+      <textarea id="checkInput" placeholder="在此粘贴或输入要检测的文本内容...&#10;&#10;支持：课件文字、课堂话术、聊天记录、教案文档、评语等"></textarea>
+    </div>
+    <div class="qa" style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+      <button class="btn btn-p" onclick="runCheck()">&#128270; 开始检测</button>
+      <label class="btn btn-o btn-sm" style="cursor:pointer;">
+        &#128196; TXT文件
+        <input type="file" accept=".txt" style="display:none" onchange="loadTxtFile(event)">
+      </label>
+      <span style="font-size:11px;color:var(--g400);">检测范围：<span id="activeScopeInfo">全部</span></span>
+      <span style="font-size:11px;color:var(--g400);">|</span>
+      <label style="font-size:11px;color:var(--g500);display:flex;align-items:center;gap:4px;cursor:pointer;">
+        <input type="checkbox" id="enableNlpCheck" checked onchange="updateEngineBadge()"> NLP增强
+      </label>
+      <label style="font-size:11px;color:var(--g500);display:flex;align-items:center;gap:4px;cursor:pointer;">
+        <input type="checkbox" id="enableSemCheck" checked onchange="updateEngineBadge()"> 语义分析
+      </label>
+    </div>
+  </div>
+
+  <div id="resultArea" style="display:none;">
+    <div class="card">
+      <div id="resultBar" class="rb">
+        <span id="resultTitle">检测完成</span>
+        <div class="rs">
+          <span id="resultTotal">违规 0 处</span>
+          <span id="resultCategories">涉及 0 类</span>
+        </div>
+      </div>
+      <div class="card-tt" style="margin-bottom:6px;font-size:13px;">&#128065; 原文标注</div>
+      <div class="hl" id="highlightArea"></div>
+      <div id="suggestionArea" style="display:none;" class="sg"></div>
+      <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;">
+        <button class="btn btn-o btn-sm" onclick="submitForReview()">&#128221; 提交复核</button>
+        <button class="btn btn-o btn-sm" onclick="submitAppeal()">&#128172; 申诉误判</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-hd">
+        <div class="card-tt">&#128203; 违规详情 <span id="violationSource" style="font-size:11px;color:var(--g400);font-weight:400;"></span></div>
+        <span style="font-size:11px;color:var(--g500);" id="violationCountLabel">共 0 处违规</span>
+      </div>
+      <div id="violationList"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== TAB: NLP ==================== -->
+<div class="tab-c" id="tab-nlp">
+  <div class="card">
+    <div class="card-hd"><div class="card-tt">&#129302; NLP增强检测引擎</div></div>
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px;margin-bottom:14px;">
+      <div class="sc"><div class="sn" id="nlpHomoCount">0</div><div class="sl">谐音变体规则</div></div>
+      <div class="sc"><div class="sn" id="nlpPatternCount">0</div><div class="sl">语义模式规则</div></div>
+      <div class="sc sr"><div class="sn" id="nlpTotalHits">0</div><div class="sl">累计NLP命中</div></div>
+    </div>
+    <div class="fr">
+      <div class="fg">
+        <label>检测文本</label>
+        <textarea id="nlpInput" placeholder="输入文本，测试NLP引擎的谐音/变体/语义检测能力..." style="min-height:120px;"></textarea>
+      </div>
+      <div class="fg">
+        <label>检测结果</label>
+        <div class="hl" id="nlpResult" style="min-height:120px;background:#fff;">输入文本后点击检测</div>
+      </div>
+    </div>
+    <div class="qa" style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-p btn-sm" onclick="runNlpCheck()">&#129302; NLP检测</button>
+      <button class="btn btn-o btn-sm" onclick="document.getElementById('nlpInput').value='';document.getElementById('nlpResult').innerHTML='输入文本后点击检测'">清空</button>
+    </div>
+    <div id="nlpDetail" style="margin-top:10px;"></div>
+  </div>
+  <div class="card">
+    <div class="card-hd">
+      <div class="card-tt">&#128220; 谐音/变体映射表</div>
+      <span style="font-size:11px;color:var(--g500);">系统内置常见的谐音、变体、拼音替代规则</span>
+    </div>
+    <div id="homoTableContainer" style="max-height:300px;overflow-y:auto;"></div>
+  </div>
+</div>
+
+<!-- ==================== TAB: MEDIA ==================== -->
+<div class="tab-c" id="tab-media">
+  <div class="card">
+    <div class="card-hd"><div class="card-tt">&#128247; OCR 图片文字识别</div><span style="font-size:11px;color:var(--g500);">通过Tesseract.js识别图片中的文字</span></div>
+    <div class="ocr-area" id="ocrDropArea" onclick="document.getElementById('ocrFileInput').click()">
+      <div class="ei" style="font-size:36px;">&#128247;</div>
+      <p style="font-size:14px;color:var(--g500);margin-bottom:4px;">点击或拖拽图片到此处</p>
+      <p style="font-size:11px;color:var(--g400);">支持 JPG / PNG / BMP / WebP</p>
+      <input type="file" id="ocrFileInput" accept="image/*" style="display:none" onchange="handleOcrFile(event)">
+    </div>
+    <div id="ocrProgress" style="display:none;margin-top:10px;">
+      <div style="display:flex;justify-content:space-between;font-size:12px;color:var(--g500);margin-bottom:4px;">
+        <span id="ocrStatus">正在识别...</span>
+        <span id="ocrPercent">0%</span>
+      </div>
+      <div class="progress"><div class="progress-bar green" id="ocrProgressBar" style="width:0%"></div></div>
+    </div>
+    <div id="ocrResult" style="margin-top:10px;display:none;">
+      <div class="fg"><label>识别结果</label><textarea id="ocrText" style="min-height:100px;" readonly></textarea></div>
+      <button class="btn btn-p btn-sm" onclick="sendOcrToCheck()">&#128270; 检测识别结果</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="card-hd"><div class="card-tt">&#127908; ASR 语音转文字</div><span style="font-size:11px;color:var(--g500);">使用浏览器语音识别（Chrome/Edge）</span></div>
+    <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+      <button class="asr-btn idle" id="asrBtn" onclick="toggleAsr()">&#127908;</button>
+      <div style="flex:1;">
+        <div style="font-size:12px;color:var(--g500);" id="asrStatus">点击麦克风开始语音识别</div>
+        <div class="progress" id="asrProgressWrap" style="display:none;margin-top:4px;">
+          <div class="progress-bar green" id="asrProgressBar" style="width:0%"></div>
+        </div>
+      </div>
+      <button class="btn btn-o btn-sm" onclick="clearAsr()">清空</button>
+    </div>
+    <div class="fg" style="margin-top:10px;">
+      <label>语音识别结果</label>
+      <textarea id="asrText" style="min-height:100px;" placeholder="语音识别结果将显示在这里..." readonly></textarea>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;">
+      <button class="btn btn-p btn-sm" onclick="sendAsrToCheck()">&#128270; 检测语音内容</button>
+      <label class="btn btn-o btn-sm" style="cursor:pointer;">
+        &#128196; 导入音频转文字
+        <input type="file" accept=".txt" style="display:none" onchange="loadAsrFile(event)">
+      </label>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== TAB: LIBRARY ==================== -->
+<div class="tab-c" id="tab-library">
+  <div class="card">
+    <div class="card-hd"><div class="card-tt">&#128218; 系统违禁词库</div><span style="font-size:12px;color:var(--g500);">点击类别标签启用/关闭</span></div>
+    <div class="ct" id="categoryToggles">
+      <label><input type="checkbox" data-cat="0" checked onchange="updateScopeInfo()"><span>&#9878; 政治</span><span class="cb" id="catCount0">0</span></label>
+      <label><input type="checkbox" data-cat="1" checked onchange="updateScopeInfo()"><span>&#128153; 师德师风</span><span class="cb" id="catCount1">0</span></label>
+      <label><input type="checkbox" data-cat="2" checked onchange="updateScopeInfo()"><span>&#128176; 广告营销</span><span class="cb" id="catCount2">0</span></label>
+      <label><input type="checkbox" data-cat="3" checked onchange="updateScopeInfo()"><span>&#128520; 低俗违规</span><span class="cb" id="catCount3">0</span></label>
+      <label><input type="checkbox" data-cat="4" checked onchange="updateScopeInfo()"><span>&#127891; 教学合规</span><span class="cb" id="catCount4">0</span></label>
+      <label><input type="checkbox" data-cat="5" checked onchange="updateScopeInfo()"><span>&#128295; 自定义</span><span class="cb" id="catCount5">0</span></label>
+    </div>
+  </div>
+  <div class="card" id="libraryCards"></div>
+
+  <div class="card">
+    <div class="card-hd"><div class="card-tt">&#9881; 自定义词库 &amp; 白名单</div></div>
+    <div class="fr">
+      <div class="fg"><label>新增违禁词</label>
+        <div style="display:flex;gap:6px;">
+          <input id="customWordInput" placeholder="输入词汇">
+          <select id="customCategory" style="width:auto;flex-shrink:0;">
+            <option value="ethics">师德师风</option>
+            <option value="ad">广告营销</option>
+            <option value="politics">政治类</option>
+            <option value="vulgar">低俗违规</option>
+            <option value="teaching">教学合规</option>
+            <option value="custom">自定义</option>
+          </select>
+          <select id="customSeverity" style="width:auto;flex-shrink:0;">
+            <option value="high">高危</option>
+            <option value="medium" selected>中危</option>
+            <option value="low">低危</option>
+          </select>
+          <button class="btn btn-p btn-sm" onclick="addCustomWord()" style="flex-shrink:0;">添加</button>
+        </div>
+      </div>
+      <div class="fg"><label>白名单（豁免词）</label>
+        <div style="display:flex;gap:6px;">
+          <input id="whitelistInput" placeholder="输入豁免词汇">
+          <button class="btn btn-s btn-sm" onclick="addWhitelist()" style="flex-shrink:0;">添加</button>
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:10px;">
+      <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:8px;">
+        <span style="font-size:12px;font-weight:600;">自定义词 (<span id="customWordCount">0</span>)</span>
+        <span style="font-size:12px;font-weight:600;">白名单 (<span id="whitelistCount">0</span>)</span>
+        <span style="flex:1;"></span>
+        <button class="btn btn-o btn-xs" onclick="showImportModal()">&#128229; 批量导入</button>
+        <button class="btn btn-o btn-xs" onclick="exportCustomWords()">&#128230; 导出</button>
+        <button class="btn btn-d btn-xs" onclick="clearAllCustom()">&#128465; 清空自定义</button>
+      </div>
+      <div class="fr">
+        <div id="customWordList" class="sql" style="min-height:80px;"></div>
+        <div id="whitelistContainer" class="wg" style="min-height:80px;"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ==================== TAB: REVIEW ==================== -->
+<div class="tab-c" id="tab-review">
+  <div class="sg" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:14px;">
+    <div class="sc sr"><div class="sn" id="reviewPendingCount">0</div><div class="sl">待复核</div></div>
+    <div class="sc sg2"><div class="sn" id="reviewApprovedCount">0</div><div class="sl">确认违规</div></div>
+    <div class="sc"><div class="sn" id="reviewRejectedCount">0</div><div class="sl">判定误判</div></div>
+    <div class="sc sy"><div class="sn" id="reviewAppealCount">0</div><div class="sl">申诉待处理</div></div>
+  </div>
+  <div class="card">
+    <div class="card-hd">
+      <div class="card-tt">&#128221; 待复核列表</div>
+      <div style="display:flex;gap:6px;">
+        <button class="btn btn-o btn-xs" onclick="exportReviewReport()">&#128230; 导出报告</button>
+        <button class="btn btn-d btn-xs" onclick="clearReviewed()">&#128465; 清空已处理</button>
+      </div>
+    </div>
+    <div id="reviewList"><div class="es"><div class="ei">&#128203;</div><p>暂无待复核内容</p></div></div>
+  </div>
+  <div class="card">
+    <div class="card-hd"><div class="card-tt">&#128172; 申诉管理</div></div>
+    <div id="appealList"><div class="es"><div class="ei">&#128172;</div><p>暂无申诉</p></div></div>
+  </div>
+  <div class="card">
+    <div class="card-hd"><div class="card-tt">&#128202; 复核统计</div></div>
+    <div id="reviewStats"></div>
+  </div>
+</div>
+
+<!-- ==================== TAB: HISTORY ==================== -->
+<div class="tab-c" id="tab-history">
+  <div class="card">
+    <div class="card-hd">
+      <div class="card-tt">&#128203; 检测历史</div>
+      <div style="display:flex;gap:6px;">
+        <span style="font-size:11px;color:var(--g500);">本地存储，自动保留最近500条</span>
+        <button class="btn btn-o btn-xs" onclick="exportHistory()">&#128230; CSV导出</button>
+        <button class="btn btn-d btn-xs" onclick="clearHistory()">&#128465; 清空</button>
+      </div>
+    </div>
+    <div id="historyContent"><div class="es"><div class="ei">&#128203;</div><p>暂无记录</p></div></div>
+  </div>
+</div>
+
+<!-- ==================== TAB: STATS ==================== -->
+<div class="tab-c" id="tab-stats">
+  <div class="sg" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));">
+    <div class="sc sr"><div class="sn" id="stTotalV">0</div><div class="sl">累计违规</div></div>
+    <div class="sc"><div class="sn" id="stTotalC">0</div><div class="sl">检测次数</div></div>
+    <div class="sc sg2"><div class="sn" id="stClean">0</div><div class="sl">无违规次数</div></div>
+    <div class="sc sy"><div class="sn" id="stRiskScore">0</div><div class="sl">当前风险分</div></div>
+    <div class="sc"><div class="sn" id="stNlpHits">0</div><div class="sl">NLP命中</div></div>
+    <div class="sc sr"><div class="sn" id="stHighRisk">0</div><div class="sl">高危违规</div></div>
+  </div>
+  <div class="card">
+    <div class="card-hd"><div class="card-tt">&#128200; 违规趋势（近30次）</div></div>
+    <div id="trendChart" style="padding-bottom:20px;"></div>
+  </div>
+  <div class="card">
+    <div class="card-hd"><div class="card-tt">&#128202; 违规类型分布</div></div>
+    <div id="categoryChart" class="chb"></div>
+  </div>
+  <div class="card">
+    <div class="card-hd"><div class="card-tt">&#128202; 高频违禁词 Top 20</div></div>
+    <div id="topWordsChart"></div>
+  </div>
+  <div class="card">
+    <div class="card-hd"><div class="card-tt">&#9888; 风险预警</div></div>
+    <div id="riskAlerts"></div>
+  </div>
+</div>
+
+</div>
+
+<!-- Import Modal -->
+<div class="modal-o" id="importModal">
+  <div class="modal">
+    <h3>&#128229; 批量导入</h3>
+    <p style="font-size:12px;color:var(--g500);margin-bottom:10px;">每行一个，格式：<code>词汇|分类|严重程度</code><br>分类可选：politics/ethics/ad/vulgar/teaching/custom 程度：high/medium/low</p>
+    <div class="fg"><textarea id="importTextarea" style="min-height:100px;" placeholder="收校外补课费|ethics|high&#10;押题密卷|ad|medium&#10;私聊加微信"></textarea></div>
+    <div class="fr">
+      <div class="fg"><label>默认分类</label><select id="importDefaultCat"><option value="custom">自定义</option><option value="politics">政治</option><option value="ethics">师德师风</option><option value="ad">广告</option><option value="vulgar">低俗</option><option value="teaching">教学</option></select></div>
+      <div class="fg"><label>默认程度</label><select id="importDefaultSev"><option value="high">高危</option><option value="medium" selected>中危</option><option value="low">低危</option></select></div>
+    </div>
+    <div class="modal-actions"><button class="btn btn-o" onclick="closeImportModal()">取消</button><button class="btn btn-p" onclick="doImport()">导入</button></div>
+  </div>
+</div>
+
+<!-- Review Modal -->
+<div class="modal-o" id="reviewModal">
+  <div class="modal">
+    <h3 id="reviewModalTitle">复核详情</h3>
+    <div id="reviewModalBody"></div>
+    <div class="modal-actions" id="reviewModalActions">
+      <button class="btn btn-o" onclick="closeReviewModal()">返回</button>
+      <button class="btn btn-w" id="reviewBtnFlag" onclick="reviewAction('flag')">标记疑似</button>
+      <button class="btn btn-d" id="reviewBtnViolation" onclick="reviewAction('violation')">确认违规</button>
+      <button class="btn btn-s" id="reviewBtnClean" onclick="reviewAction('clean')">判定误判</button>
+    </div>
+  </div>
+</div>
+
+<!-- Appeal Modal -->
+<div class="modal-o" id="appealModal">
+  <div class="modal">
+    <h3>&#128172; 提交申诉</h3>
+    <div class="fg"><label>申诉原因</label><textarea id="appealReason" style="min-height:80px;" placeholder="请说明为什么认为这是误判..."></textarea></div>
+    <div id="appealPreview" style="font-size:12px;color:var(--g500);margin-bottom:10px;background:var(--g50);padding:8px;border-radius:6px;"></div>
+    <div class="modal-actions"><button class="btn btn-o" onclick="closeAppealModal()">取消</button><button class="btn btn-w" onclick="submitAppealConfirm()">提交申诉</button></div>
+  </div>
+</div>
+
+<script>
+// ================================================================
+// DATA
+// ================================================================
+const CATS = [
+  { id:0, key:'politics', name:'政治类', icon:'&#9878;', color:'#9d174d', bg:'#fce7f3', desc:'敏感时政、不当言论' },
+  { id:1, key:'ethics', name:'师德师风', icon:'&#128153;', color:'#92400e', bg:'#fef3c7', desc:'体罚辱骂/索礼/有偿补课/不当交往' },
+  { id:2, key:'ad', name:'广告营销', icon:'&#128176;', color:'#1e40af', bg:'#dbeafe', desc:'校外引流/带货/售卖/诱导付费' },
+  { id:3, key:'vulgar', name:'低俗违规', icon:'&#128520;', color:'#9d174d', bg:'#fce7f3', desc:'脏话/色情/暴力/迷信' },
+  { id:4, key:'teaching', name:'教学合规', icon:'&#127891;', color:'#3730a3', bg:'#e0e7ff', desc:'违规补课/超前教学/虚假承诺' },
+  { id:5, key:'custom', name:'自定义', icon:'&#128295;', color:'#6b21a8', bg:'#f3e8ff', desc:'用户自定义' }
+];
+const CAT_KEY = { politics:0, ethics:1, ad:2, vulgar:3, teaching:4, custom:5 };
+
+const DEF = {
+  politics:['法轮功','台独','港独','藏独','疆独','分裂国家','颠覆政权','敏感政治人物','非法组织','邪教','极端主义','恐怖主义','歪曲历史','否定党的领导','攻击社会主义制度','恶意炒作敏感事件','不当政治言论','违规政治表述','错误历史观','侮辱国歌','侮辱国旗','煽动民族仇恨','破坏民族团结','宣扬分裂'],
+  ethics:['真笨','蠢死了','你是猪吗','废物','没救了','滚出去','站着去','扇你','打你','收拾你','欠揍','找打','不想学滚','全班最差','拖后腿','丢人','不要脸','恶心','有病','弱智','傻子','脑残','白痴','笨蛋','蠢货','歧视','农村孩子','外地人','穷鬼','没出息','送礼物','发红包','给钱','收红包','转账','微信红包','请客','送礼','表示表示','意思意思','补课费','家教费','有偿补课','私下补课','家里补课','课后辅导收费','一对一辅导费','提分班','保过班','校外补课','周末补课','假期补课','补课班','做我女朋友','喜欢你','想你了','约你出去','单独见面','亲一下','抱一下','暧昧','私聊','加微信私聊','真好看','真漂亮','可爱死了','加我微信','加我QQ','私信我','加微信','私下联系','校外辅导','我家补课','来我家里'],
+  ad:['购买课程','下单','优惠价','限时优惠','原价','特价','买一送一','团购','拼团','砍价','免费领取','扫码领取','点击链接','复制链接','淘宝','京东','微商','代购','代理','加盟','分销','卖资料','出售笔记','售卖课件','卖答案','卖试卷','付费','收费','价格','多少钱','转账购买','推荐机构','介绍老师','报名链接','试听课','诱导消费','营销话术','逼单','限时抢购'],
+  vulgar:['他妈','特么','草泥马','操你','去死','滚蛋','傻逼','尼玛','你妈','妈的','日你','靠','色情','黄色','成人','裸聊','约炮','赌博','赌场','赌钱','六合彩','迷信','算命','看相','风水','鬼神','暴力','杀人','自杀','跳楼','自残','毒品','吸毒','贩毒','嗑药','抽烟','吸烟','喝酒','酗酒','我勒个去','卧槽','特么的','我去'],
+  teaching:['保证提分','承诺录取','包过','保过','包升学','签约保过','不过退款','保证上重点','超前教学','超纲教学','提前学','抢跑','升学承诺','重点班保证','名校承诺','竞赛包过','竞赛保送','保送承诺','押题','透题','漏题','原题','百分百','绝对能','一定行','确保','违规竞赛','学科竞赛','等级考试']
+};
+
+// ================================================================
+// NLP ENGINE
+// ================================================================
+const NLP = {
+  // 谐音映射: 常见谐音/变体 -> 原始词
+  homophones: {
+    'fei':'费','fei4':'费','fei1':'非','shou':'收','shou1':'收','shou4':'受',
+    'mi':'米','qian':'钱','hong':'红','bao':'包','ke':'课','cheng':'程',
+    'si':'私','liao':'聊','jia':'加','wei':'微','xin':'信','zhuan':'转',
+    'zhang':'账','fu':'付','kuan':'款','xue':'学','fei4_2':'费',
+    // 拼音首字母
+    'wx':'微信','zfb':'支付宝','tb':'淘宝','jd':'京东','qq':'QQ',
+    'vx':'微信','v':'微信','w':'我','n':'你','t':'他','m':'吗',
+    // 数字谐音
+    '520':'我爱你','7456':'气死我了','555':'呜呜呜','88':'拜拜',
+    '666':'溜溜溜','233':'啊哈哈','4242':'是啊是啊',
+    // 英文替代
+    'money':'钱','fee':'费','wechat':'微信','q':'QQ','add':'加',
+    'fee':'费','pay':'支付','free':'免费','vip':'会员',
+    // 简体->异体/错别字
+    '收米':'收费','收fei':'收费','收Fee':'收费','薇信':'微信',
+    '威信':'微信','威姓':'微信','胃新':'微信','卫星':'微信',
+    '家我':'加我','家威':'加微信','扣扣':'QQ','秋秋':'QQ',
+    // 形近字
+    '收赁':'收费','收胼':'收费','加微':'加微信','思聊':'私聊',
+    '思信':'私信','思下':'私下','赚账':'转账','赚钱':'转钱',
+    // 拆分/插字
+    '收 费':'收费','收_费':'收费','收-费':'收费','加 微':'加微信',
+    '私 聊':'私聊','补 课':'补课',
+    // 常见替换
+    '🌹':'花','❤️':'爱','💰':'钱','🎁':'礼物','📚':'书',
+  },
+
+  // 语义模式: 上下文组合检测
+  semanticPatterns: [
+    // 有偿补课暗示
+    { words:['周末','补课','家里'], cat:'ethics', sev:'high', label:'有偿补课暗示（时间+地点+行为）' },
+    { words:['来我家','补课','收费'], cat:'ethics', sev:'high', label:'有偿补课' },
+    { words:['私下','补课','联系'], cat:'ethics', sev:'high', label:'私下补课联系' },
+    { words:['加我','微信','补课'], cat:'ethics', sev:'high', label:'微信私下补课' },
+    { words:['课后','辅导','收费'], cat:'ethics', sev:'high', label:'课后有偿辅导' },
+    { words:['周末','来我家','学习'], cat:'ethics', sev:'medium', label:'周末私下邀约' },
+    { words:['单独','来','家里'], cat:'ethics', sev:'high', label:'单独家访不当' },
+    // 索礼暗示
+    { words:['教师节','红包'], cat:'ethics', sev:'medium', label:'暗示节日索礼' },
+    { words:['最近','手头紧'], cat:'ethics', sev:'medium', label:'暗示索要财物' },
+    { words:['表示','一下'], cat:'ethics', sev:'low', label:'暗示表示' },
+    { words:['意思','一下'], cat:'ethics', sev:'low', label:'暗示意思' },
+    // 冷暴力/嘲讽
+    { words:['全班','就你','不会'], cat:'ethics', sev:'medium', label:'公开羞辱' },
+    { words:['你怎么','什么都','不会'], cat:'ethics', sev:'low', label:'否定式批评' },
+    // 营销诱导
+    { words:['限时','优惠','报名'], cat:'ad', sev:'medium', label:'限时营销' },
+    { words:['名额','有限','抢'], cat:'ad', sev:'medium', label:'饥饿营销' },
+    { words:['免费','领取','资料'], cat:'ad', sev:'low', label:'免费引流' },
+    // 虚假承诺
+    { words:['保证','提高','成绩'], cat:'teaching', sev:'high', label:'虚假提分承诺' },
+    { words:['签约','保过'], cat:'teaching', sev:'high', label:'签约保过' },
+    { words:['包','上','重点'], cat:'teaching', sev:'high', label:'包上重点' },
+    // 不当关系
+    { words:['单独','约','学生'], cat:'ethics', sev:'high', label:'单独约见学生' },
+    { words:['晚上','来','办公室'], cat:'ethics', sev:'medium', label:'不当单独邀约' },
+    // 情绪暴力
+    { words:['不想管','你了'], cat:'ethics', sev:'low', label:'放弃式威胁' },
+    { words:['叫家长','别来'], cat:'ethics', sev:'low', label:'威胁叫家长' },
+    // 校外引流
+    { words:['推荐','机构','老师'], cat:'ad', sev:'medium', label:'推荐校外机构' },
+    { words:['我朋友','开','机构'], cat:'ad', sev:'medium', label:'推荐熟人机构' },
+  ],
+
+  // 谐音检测
+  detectHomophones(text) {
+    const results = [];
+    const lower = text.toLowerCase();
+    // Direct homophone substitution detection
+    for (const [variant, original] of Object.entries(this.homophones)) {
+      let idx = 0;
+      while (idx < lower.length) {
+        const pos = lower.indexOf(variant, idx);
+        if (pos === -1) break;
+        // Determine category based on original word
+        let cat = 'custom', sev = 'medium';
+        if (['费','收','钱','微信','转账','支付'].some(w => original.includes(w) || original === w)) { cat = 'ad'; sev = 'medium'; }
+        if (['微信','加','私','聊','QQ'].some(w => original.includes(w) || original === w)) { cat = 'ethics'; sev = 'medium'; }
+        if (['礼物','红包','钱'].some(w => original.includes(w) || original === w)) { cat = 'ethics'; sev = 'high'; }
+        if (['补课','辅导','家教'].some(w => original.includes(w) || original === w)) { cat = 'ethics'; sev = 'high'; }
+        results.push({
+          type:'nlp', word: variant, original, index: pos, length: variant.length,
+          category: cat, catId: CAT_KEY[cat] ?? 5, severity: sev,
+          label: `谐音/变体: ${variant} → ${original}`
+        });
+        idx = pos + 1;
+      }
+    }
+    return results;
+  },
+
+  // 拆分/插字检测 (e.g. "收 费", "加_微")
+  detectSplitWords(text) {
+    const results = [];
+    const patterns = [
+      { regex: /收[\s\-_\.\*\+]费/g, original: '收费', cat: 'ad', sev: 'medium' },
+      { regex: /加[\s\-_\.\*\+]微/g, original: '加微信', cat: 'ethics', sev: 'medium' },
+      { regex: /私[\s\-_\.\*\+]聊/g, original: '私聊', cat: 'ethics', sev: 'medium' },
+      { regex: /补[\s\-_\.\*\+]课/g, original: '补课', cat: 'ethics', sev: 'high' },
+      { regex: /红[\s\-_\.\*\+]包/g, original: '红包', cat: 'ethics', sev: 'high' },
+      { regex: /转[\s\-_\.\*\+]账/g, original: '转账', cat: 'ethics', sev: 'high' },
+      { regex: /约[\s\-_\.\*\+]炮/g, original: '约炮', cat: 'vulgar', sev: 'high' },
+      { regex: /赌[\s\-_\.\*\+]博/g, original: '赌博', cat: 'vulgar', sev: 'high' },
+      { regex: /吸[\s\-_\.\*\+]毒/g, original: '吸毒', cat: 'vulgar', sev: 'high' },
+      { regex: /色[\s\-_\.\*\+]情/g, original: '色情', cat: 'vulgar', sev: 'high' },
+    ];
+    for (const p of patterns) {
+      let m;
+      while ((m = p.regex.exec(text)) !== null) {
+        results.push({
+          type:'nlp', word: m[0], original: p.original, index: m.index, length: m[0].length,
+          category: p.cat, catId: CAT_KEY[p.cat] ?? 5, severity: p.sev,
+          label: `拆分检测: ${m[0]} → ${p.original}`
+        });
+      }
+    }
+    return results;
+  },
+
+  // 语义模式检测
+  detectSemantic(text) {
+    const results = [];
+    for (const pattern of this.semanticPatterns) {
+      const allMatch = pattern.words.every(w => text.includes(w));
+      if (allMatch) {
+        // Find the combined span
+        let minIdx = text.length, maxEnd = 0;
+        pattern.words.forEach(w => {
+          const idx = text.indexOf(w);
+          if (idx >= 0) { minIdx = Math.min(minIdx, idx); maxEnd = Math.max(maxEnd, idx + w.length); }
+        });
+        results.push({
+          type:'semantic', word: pattern.words.join('+'), original: pattern.label,
+          index: minIdx, length: maxEnd - minIdx,
+          category: pattern.cat, catId: CAT_KEY[pattern.cat] ?? 5, severity: pattern.sev,
+          label: pattern.label
+        });
+      }
+    }
+    return results;
+  },
+
+  // Full NLP scan
+  scan(text) {
+    const results = [];
+    const homo = this.detectHomophones(text);
+    const split = this.detectSplitWords(text);
+    const sem = this.detectSemantic(text);
+    return [...homo, ...split, ...sem];
+  },
+
+  getStats() {
+    return {
+      homoCount: Object.keys(this.homophones).length,
+      patternCount: this.semanticPatterns.length,
+    };
+  }
+};
+
+// ================================================================
+// STATE
+// ================================================================
+let state = {
+  customWords: [],
+  whitelist: [],
+  history: [],
+  activeCategories: [true,true,true,true,true,true],
+  reviewQueue: [],     // {id, time, text, violations:[], status:'pending'|'violation'|'clean'}
+  appeals: [],         // {id, time, text, violations:[], reason, status:'pending'|'approved'|'rejected'}
+  role: 'admin',
+  asrRecognizing: false,
+  nlpTotalHits: 0,
+};
+let reviewIdCounter = 0;
+let currentReviewId = null;
+let currentAppealText = '';
+
+// ================================================================
+// INIT
+// ================================================================
+function init() {
+  loadState();
+  renderLibrary();
+  updateScopeInfo();
+  updateAll();
+  updateReviewUI();
+  updateAppealUI();
+  updateReviewStats();
+  renderNlpInfo();
+  setupDragDrop();
+  updateEngineBadge();
+  computeRiskAlerts();
+}
+
+// ================================================================
+// PERSISTENCE
+// ================================================================
+function save() {
+  try {
+    const d = { customWords: state.customWords, whitelist: state.whitelist,
+      history: state.history.slice(-500), activeCategories: state.activeCategories,
+      reviewQueue: state.reviewQueue.slice(-200), appeals: state.appeals.slice(-200),
+      nlpTotalHits: state.nlpTotalHits };
+    localStorage.setItem('tf_state_v4', JSON.stringify(d));
+  } catch(e) {}
+}
+function loadState() {
+  try {
+    const r = localStorage.getItem('tf_state_v4');
+    if (r) {
+      const d = JSON.parse(r);
+      Object.assign(state, d);
+      if (state.reviewQueue) state.reviewQueue.forEach(i => { if (!i.id) i.id = ++reviewIdCounter; });
+    }
+  } catch(e) {}
+}
+
+// ================================================================
+// CHECK ENGINE (3-layer)
+// ================================================================
+function runCheck(from) {
+  const text = document.getElementById('checkInput').value;
+  if (!text.trim()) { showToast('请输入要检测的文本'); return; }
+
+  const enableNlp = document.getElementById('enableNlpCheck').checked;
+  const enableSem = document.getElementById('enableSemCheck').checked;
+
+  // Layer 1: Rule engine (exact match)
+  const activeWords = getAllActiveWords();
+  activeWords.sort((a,b) => b.word.length - a.word.length);
+  const violations = [];
+  const matchedIndices = [];
+  activeWords.forEach(aw => {
+    let idx = 0; const wlen = aw.word.length;
+    while (idx < text.length) {
+      const pos = text.indexOf(aw.word, idx);
+      if (pos === -1) break;
+      if (!matchedIndices.some(([s,e]) => pos < e && pos + wlen > s)) {
+        violations.push({ type:'rule', word:aw.word, category:aw.category, catId:aw.catId, severity:aw.severity, index:pos, length:wlen, label:'' });
+        matchedIndices.push([pos, pos + wlen]);
+      }
+      idx = pos + 1;
+    }
+  });
+
+  // Layer 2: NLP detection
+  const nlpResults = [];
+  if (enableNlp) {
+    const nlpAll = NLP.scan(text);
+    // Filter overlaps with rule matches
+    nlpAll.forEach(n => {
+      if (!matchedIndices.some(([s,e]) => n.index < e && n.index + n.length > s)) {
+        const item = { type:'nlp', word:n.word, category:n.category, catId:n.catId, severity:n.severity, index:n.index, length:n.length, label:n.label, original:n.original || '' };
+        nlpResults.push(item);
+        violations.push(item);
+        matchedIndices.push([n.index, n.index + n.length]);
+      }
+    });
+    if (nlpResults.length > 0) state.nlpTotalHits += nlpResults.length;
+  }
+
+  // Layer 3: Semantic patterns
+  const semResults = [];
+  if (enableSem) {
+    const semAll = NLP.detectSemantic(text);
+    semAll.forEach(s => {
+      if (!matchedIndices.some(([s2,e]) => s.index < e && s.index + s.length > s2)) {
+        const item = { type:'semantic', word:s.word, category:s.category, catId:s.catId, severity:s.severity, index:s.index, length:s.length, label:s.label, original:s.original || '' };
+        semResults.push(item);
+        violations.push(item);
+        matchedIndices.push([s.index, s.index + s.length]);
+      }
+    });
+    if (semResults.length > 0) state.nlpTotalHits += semResults.length;
+  }
+
+  violations.sort((a,b) => a.index - b.index);
+
+  // Highlight
+  let highlighted = '';
+  let lastIdx = 0;
+  violations.forEach(v => {
+    highlighted += esc(text.slice(lastIdx, v.index));
+    const catName = CATS[v.catId] ? CATS[v.catId].name : '未知';
+    const info = v.type === 'rule' ? `【${catName}】${esc(v.word)}` : v.label;
+    const cls = v.type === 'nlp' ? 'h-nlp' : v.type === 'semantic' ? 'h-sem' : 'h' + v.catId;
+    highlighted += `<span class="h ${cls}" title="${esc(info)} — ${sevText(v.severity)}">${esc(v.word)}</span>`;
+    lastIdx = v.index + v.length;
+  });
+  highlighted += esc(text.slice(lastIdx));
+
+  document.getElementById('highlightArea').innerHTML = highlighted || esc(text);
+
+  // Result bar
+  const rb = document.getElementById('resultBar');
+  const rt = document.getElementById('resultTitle');
+  const rtot = document.getElementById('resultTotal');
+  const rcat = document.getElementById('resultCategories');
+
+  if (violations.length === 0) {
+    rb.className = 'rb pass'; rt.innerHTML = '&#9989; 检测通过，未发现违禁内容';
+    rtot.textContent = '违规 0 处'; rcat.textContent = '内容合规';
+    document.getElementById('violationList').innerHTML = '<div class="es"><div class="ei">&#9989;</div><p>未检测到违禁内容</p></div>';
+    document.getElementById('suggestionArea').style.display = 'none';
+  } else {
+    const cs = new Set(violations.map(v => v.catId));
+    const hh = violations.some(v => v.severity === 'high');
+    rb.className = 'rb ' + (hh ? 'danger' : 'warn');
+    rt.innerHTML = hh ? '&#9888; 检测到高危违禁内容' : '&#9888; 检测到疑似违规内容';
+    rtot.textContent = `违规 ${violations.length} 处`; rcat.textContent = `涉及 ${cs.size} 个类别`;
+
+    let vh = '';
+    violations.forEach(v => {
+      const cat = CATS[v.catId] || CATS[5];
+      const cst = Math.max(0, v.index - 5), cen = Math.min(text.length, v.index + v.word.length + 5);
+      let ctx = (cst > 0 ? '...' : '') + text.slice(cst, cen) + (cen < text.length ? '...' : '');
+      const typeCls = v.type === 'nlp' ? 't-nlp' : v.type === 'semantic' ? 't-sem' : 't-' + (v.category || 'cus');
+      const typeName = v.type === 'nlp' ? 'NLP' : v.type === 'semantic' ? '语义' : cat.name;
+      vh += `<div class="vi"><span class="vt ${typeCls}">${typeName}</span><span class="vw">${esc(v.word)}</span><span class="vc">${esc(ctx)}</span><span class="vs s${v.severity[0]}">${sevText(v.severity)}</span></div>`;
+    });
+    document.getElementById('violationList').innerHTML = vh;
+
+    let sug = [];
+    if (violations.some(v => v.catId === 1)) sug.push('师德师风类违规：请修改相关话术，避免侮辱/索礼/有偿补课等表述');
+    if (violations.some(v => v.catId === 2)) sug.push('广告营销类违规：请删除课程推广、收费引导等内容');
+    if (violations.some(v => v.catId === 0)) sug.push('政治类违规：立即删除敏感言论，可能导致严重合规风险');
+    if (violations.some(v => v.type === 'nlp')) sug.push('NLP引擎检测到谐音/变体规避行为，请使用规范用语');
+    if (violations.some(v => v.type === 'semantic')) sug.push('语义分析检测到隐含违规模式，请注意上下文表述');
+    if (!sug.length) sug.push('请逐条检查标红内容，修改后重新提交');
+    document.getElementById('suggestionArea').innerHTML = '<strong>&#128161; 修改建议：</strong><br>' + sug.map(s => '&bull; ' + s).join('<br>');
+    document.getElementById('suggestionArea').style.display = 'block';
+  }
+
+  document.getElementById('violationCountLabel').textContent = `共 ${violations.length} 处违规`;
+  document.getElementById('violationSource').textContent = from ? `（来源: ${from}）` : '';
+  document.getElementById('resultArea').style.display = 'block';
+
+  // Save history
+  const cs = new Set(violations.map(v => v.catId));
+  const entry = { time: new Date().toLocaleString('zh-CN'), ts: Date.now(),
+    textPreview: text.slice(0,70)+(text.length>70?'...':''), total:violations.length,
+    catCount:cs.size, hasHigh:violations.some(v=>v.severity==='high'),
+    nlpCount:nlpResults.length, semCount:semResults.length,
+    violations: violations.map(v=>({word:v.word,cat:v.category,sev:v.severity,type:v.type})) };
+  state.history.unshift(entry);
+  if (state.history.length > 500) state.history = state.history.slice(0,500);
+  save(); updateHistory(); updateBadges(); updateStats();
+  document.getElementById('resultArea').scrollIntoView({behavior:'smooth',block:'start'});
+  computeRiskAlerts();
+}
+
+function esc(s) { const d=document.createElement('div'); d.textContent=s; return d.innerHTML; }
+function sevText(s) { return s==='high'?'高危':s==='medium'?'中危':'低危'; }
+
+// ================================================================
+// REVIEW SYSTEM
+// ================================================================
+function submitForReview() {
+  const text = document.getElementById('checkInput').value;
+  if (!text.trim()) { showToast('请先进行检测'); return; }
+  const violating = state.history[0];
+  if (!violating || violating.total === 0) { showToast('暂无违规内容需要复核'); return; }
+  const item = { id: ++reviewIdCounter, time: new Date().toLocaleString('zh-CN'), ts: Date.now(),
+    textPreview: text.slice(0,80)+(text.length>80?'...':''), text: text.slice(0,500),
+    violations: violating.violations || [], total: violating.total || 0,
+    status: 'pending', reviewedBy: '', reviewNote: '', reviewTime: '' };
+  state.reviewQueue.unshift(item);
+  save(); updateReviewUI(); showToast('已提交复核 #' + item.id);
+}
+
+function openReview(id) {
+  const item = state.reviewQueue.find(i => i.id === id);
+  if (!item) return;
+  currentReviewId = id;
+  document.getElementById('reviewModalTitle').textContent = '复核 #' + id;
+  const vhtml = (item.violations||[]).map(v => `<div class="vi"><span class="vw">${esc(v.word)}</span><span class="vs s${v.sev[0]}">${sevText(v.sev)}</span></div>`).join('');
+  document.getElementById('reviewModalBody').innerHTML = `
+    <div style="margin-bottom:10px;"><strong>时间：</strong>${item.time}</div>
+    <div style="margin-bottom:10px;"><strong>内容：</strong><br>${esc(item.text || item.textPreview)}</div>
+    <div style="margin-bottom:10px;"><strong>违规项（${item.total}）：</strong></div>
+    ${vhtml || '<div style="color:var(--g400)">无</div>'}
+    <div style="margin-top:10px;padding:8px;background:var(--g50);border-radius:6px;">
+      <div class="fg"><label>复核备注</label><input id="reviewNote" placeholder="可选备注"></div>
+    </div>
+  `;
+  const st = item.status;
+  document.getElementById('reviewBtnFlag').style.display = st === 'pending' ? '' : 'none';
+  document.getElementById('reviewBtnViolation').style.display = st === 'pending' || st === 'flag' ? '' : 'none';
+  document.getElementById('reviewBtnClean').style.display = st === 'pending' || st === 'flag' ? '' : 'none';
+  document.getElementById('reviewModal').classList.add('show');
+}
+function closeReviewModal() { document.getElementById('reviewModal').classList.remove('show'); currentReviewId = null; }
+function reviewAction(action) {
+  const item = state.reviewQueue.find(i => i.id === currentReviewId);
+  if (!item) return;
+  const note = document.getElementById('reviewNote')?.value || '';
+  item.status = action;
+  item.reviewNote = note;
+  item.reviewTime = new Date().toLocaleString('zh-CN');
+  item.reviewedBy = state.role === 'admin' ? '管理员' : '审核员';
+  save(); updateReviewUI(); updateReviewStats(); closeReviewModal();
+  showToast('已' + (action === 'violation' ? '确认违规' : action === 'clean' ? '判定误判' : '标记疑似'));
+  computeRiskAlerts();
+}
+
+function updateReviewUI() {
+  const container = document.getElementById('reviewList');
+  const badge = document.getElementById('reviewBadge');
+  const pending = state.reviewQueue.filter(i => i.status === 'pending' || i.status === 'flag');
+  badge.textContent = pending.length;
+  document.getElementById('reviewPendingCount').textContent = pending.length;
+  document.getElementById('reviewApprovedCount').textContent = state.reviewQueue.filter(i => i.status === 'violation').length;
+  document.getElementById('reviewRejectedCount').textContent = state.reviewQueue.filter(i => i.status === 'clean').length;
+  document.getElementById('reviewAppealCount').textContent = state.appeals.filter(i => i.status === 'pending').length;
+
+  if (state.reviewQueue.length === 0) {
+    container.innerHTML = '<div class="es"><div class="ei">&#128203;</div><p>暂无复核记录</p></div>'; return;
+  }
+  let html = '<div class="tw"><table><thead><tr><th>ID</th><th>时间</th><th>内容</th><th>违规数</th><th>状态</th><th>操作</th></tr></thead><tbody>';
+  state.reviewQueue.forEach(i => {
+    const stMap = { pending:'<span style="color:var(--w)">待复核</span>', flag:'<span style="color:#8b5cf6">已标记</span>', violation:'<span style="color:var(--d)">确认违规</span>', clean:'<span style="color:var(--s)">误判</span>' };
+    const btn = i.status === 'pending' || i.status === 'flag' ? `<button class="btn btn-o btn-xs" onclick="openReview(${i.id})">复核</button>` : '';
+    html += `<tr><td>#${i.id}</td><td style="font-size:11px">${i.time}</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(i.textPreview)}</td><td>${i.total}</td><td>${stMap[i.status] || '待复核'}</td><td>${btn}</td></tr>`;
+  });
+  html += '</tbody></table></div>';
+  container.innerHTML = html;
+}
+
+function updateReviewStats() {
+  const total = state.reviewQueue.length;
+  const confirmed = state.reviewQueue.filter(i => i.status === 'violation').length;
+  const rejected = state.reviewQueue.filter(i => i.status === 'clean').length;
+  const pending = state.reviewQueue.filter(i => i.status === 'pending' || i.status === 'flag').length;
+  const acc = (total - pending) > 0 ? ((confirmed / (total - pending)) * 100).toFixed(0) : 0;
+  document.getElementById('reviewStats').innerHTML = total === 0 ? '<div class="es"><p>暂无数据</p></div>' :
+    `<div class="sg" style="grid-template-columns:repeat(3,1fr);">
+      <div class="sc"><div class="sn">${total}</div><div class="sl">总复核数</div></div>
+      <div class="sc sg2"><div class="sn">${confirmed}</div><div class="sl">确认违规</div></div>
+      <div class="sc"><div class="sn">${acc}%</div><div class="sl">违规确认率</div></div>
+    </div>`;
+}
+
+function clearReviewed() {
+  const before = state.reviewQueue.length;
+  state.reviewQueue = state.reviewQueue.filter(i => i.status === 'pending' || i.status === 'flag');
+  save(); updateReviewUI(); updateReviewStats();
+  showToast(`已清理 ${before - state.reviewQueue.length} 条已处理记录`);
+}
+
+function exportReviewReport() {
+  if (state.reviewQueue.length === 0) { showToast('无数据'); return; }
+  let csv = '﻿ID,时间,内容,违规数,状态,复核备注\n';
+  state.reviewQueue.forEach(i => { csv += `#${i.id},${i.time},${(i.textPreview||'').replace(/,/g,'，')},${i.total},${i.status},${(i.reviewNote||'').replace(/,/g,'，')}\n`; });
+  dl(csv, '复核报告.csv', 'text/csv;charset=utf-8'); showToast('导出成功');
+}
+
+// ================================================================
+// APPEAL SYSTEM
+// ================================================================
+function submitAppeal() {
+  const text = document.getElementById('checkInput').value;
+  if (!text.trim()) { showToast('请先进行检测'); return; }
+  const violating = state.history[0];
+  if (!violating || violating.total === 0) { showToast('没有可申诉的违规'); return; }
+  currentAppealText = text.slice(0,500);
+  document.getElementById('appealPreview').innerHTML = '<strong>检测内容：</strong><br>' + esc(currentAppealText.slice(0,200));
+  document.getElementById('appealReason').value = '';
+  document.getElementById('appealModal').classList.add('show');
+}
+function closeAppealModal() { document.getElementById('appealModal').classList.remove('show'); }
+function submitAppealConfirm() {
+  const reason = document.getElementById('appealReason').value.trim();
+  if (!reason) { showToast('请填写申诉原因'); return; }
+  const violating = state.history[0];
+  const item = { id: ++reviewIdCounter, time: new Date().toLocaleString('zh-CN'), ts: Date.now(),
+    text: currentAppealText, textPreview: currentAppealText.slice(0,70)+(currentAppealText.length>70?'...':''),
+    violations: violating ? violating.violations : [], total: violating ? violating.total : 0,
+    reason, status: 'pending', response: '' };
+  state.appeals.unshift(item);
+  save(); updateAppealUI(); closeAppealModal();
+  showToast('申诉已提交，等待管理员处理');
+}
+
+function resolveAppeal(id, result) {
+  const item = state.appeals.find(i => i.id === id);
+  if (!item) return;
+  item.status = result === 'approve' ? 'approved' : 'rejected';
+  item.response = result === 'approve' ? '申诉通过，已标记为误判' : '申诉驳回，维持违规判定';
+  // If approved, add to whitelist
+  if (result === 'approve' && item.violations && item.violations.length > 0) {
+    const firstWord = item.violations[0].word;
+    if (!state.whitelist.includes(firstWord)) {
+      state.whitelist.push(firstWord);
+      updateWhitelist();
+    }
+  }
+  save(); updateAppealUI(); showToast(result === 'approve' ? '申诉通过，已处理' : '申诉驳回');
+}
+
+function updateAppealUI() {
+  const container = document.getElementById('appealList');
+  if (state.appeals.length === 0) {
+    container.innerHTML = '<div class="es"><div class="ei">&#128172;</div><p>暂无申诉</p></div>'; return;
+  }
+  let html = '<div class="tw"><table><thead><tr><th>ID</th><th>时间</th><th>原因</th><th>状态</th><th style="width:140px">操作</th></tr></thead><tbody>';
+  state.appeals.forEach(i => {
+    const stMap = { pending:'<span style="color:var(--w)">待处理</span>', approved:'<span style="color:var(--s)">已通过</span>', rejected:'<span style="color:var(--d)">已驳回</span>' };
+    const act = i.status === 'pending' ? `<button class="btn btn-s btn-xs" onclick="resolveAppeal(${i.id},'approve')">通过</button><button class="btn btn-d btn-xs" onclick="resolveAppeal(${i.id},'reject')">驳回</button>` :
+      i.response ? `<span style="font-size:11px;color:var(--g400)">${i.response}</span>` : '';
+    html += `<tr><td>#${i.id}</td><td style="font-size:11px">${i.time}</td><td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(i.reason)}</td><td>${stMap[i.status]}</td><td><div style="display:flex;gap:4px;">${act}</div></td></tr>`;
+  });
+  html += '</tbody></table></div>';
+  container.innerHTML = html;
+}
+
+// ================================================================
+// ROLE SYSTEM
+// ================================================================
+function setRole(role) {
+  state.role = role;
+  document.querySelectorAll('.role-btn').forEach(b => b.classList.toggle('active', b.dataset.role === role));
+  // Teacher view restrictions
+  const adminElements = document.querySelectorAll('.admin-only');
+  adminElements.forEach(el => el.style.display = role === 'admin' ? '' : 'none');
+  if (role === 'teacher') {
+    document.querySelectorAll('[data-tab="review"]').forEach(b => b.style.display = 'none');
+    document.querySelectorAll('[data-tab="stats"]').forEach(b => b.textContent.includes('看板') ? (b.style.display = 'none') : '');
+  } else {
+    document.querySelectorAll('[data-tab="review"]').forEach(b => b.style.display = '');
+    document.querySelectorAll('[data-tab="stats"]').forEach(b => b.style.display = '');
+  }
+  showToast('已切换为' + (role === 'admin' ? '管理员' : '教师') + '视角');
+  save();
+}
+
+// ================================================================
+// NLP TAB
+// ================================================================
+function renderNlpInfo() {
+  const stats = NLP.getStats();
+  document.getElementById('nlpHomoCount').textContent = stats.homoCount;
+  document.getElementById('nlpPatternCount').textContent = stats.patternCount;
+  document.getElementById('nlpTotalHits').textContent = state.nlpTotalHits;
+
+  // Render homophone table
+  const homo = NLP.homophones;
+  let html = '<table><thead><tr><th>变体</th><th>原词</th></tr></thead><tbody>';
+  const entries = Object.entries(homo).slice(0, 80);
+  entries.forEach(([k, v]) => { html += `<tr><td><code>${esc(k)}</code></td><td>${esc(v)}</td></tr>`; });
+  html += '</tbody></table>';
+  if (entries.length >= 80) html += '<div style="text-align:center;padding:8px;color:var(--g400);font-size:12px;">... 共 ' + Object.keys(homo).length + ' 条规则</div>';
+  document.getElementById('homoTableContainer').innerHTML = html;
+}
+
+function runNlpCheck() {
+  const text = document.getElementById('nlpInput').value;
+  if (!text.trim()) { showToast('请输入文本'); return; }
+  const results = NLP.scan(text);
+  const el = document.getElementById('nlpResult');
+  if (results.length === 0) {
+    el.innerHTML = '<span style="color:var(--s)">&#9989; 未检测到NLP违规</span>';
+    document.getElementById('nlpDetail').innerHTML = '';
+    return;
+  }
+  el.innerHTML = '<span style="color:var(--d)">&#9888; 发现 ' + results.length + ' 处NLP/语义问题</span>';
+  let html = '<div style="margin-top:6px;">';
+  results.forEach(r => {
+    html += `<div class="vi"><span class="vt ${r.type==='nlp'?'t-nlp':'t-sem'}">${r.type==='nlp'?'NLP':'语义'}</span>
+      <span class="vw">${esc(r.word)}</span>
+      <span class="vc">${esc(r.label)}</span>
+      <span class="vs s${r.severity[0]}">${sevText(r.severity)}</span></div>`;
+  });
+  html += '</div>';
+  document.getElementById('nlpDetail').innerHTML = html;
+}
+
+function updateEngineBadge() {
+  const nlp = document.getElementById('enableNlpCheck').checked;
+  const sem = document.getElementById('enableSemCheck').checked;
+  const parts = ['规则'];
+  if (nlp) parts.push('NLP');
+  if (sem) parts.push('语义');
+  document.getElementById('engineBadge').textContent = parts.join('+');
+}
+
+// ================================================================
+// OCR
+// ================================================================
+function setupDragDrop() {
+  const area = document.getElementById('ocrDropArea');
+  area.addEventListener('dragover', e => { e.preventDefault(); area.classList.add('dragover'); });
+  area.addEventListener('dragleave', () => area.classList.remove('dragover'));
+  area.addEventListener('drop', e => {
+    e.preventDefault(); area.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file && file.type.startsWith('image/')) processOcr(file);
+  });
+}
+
+function handleOcrFile(e) {
+  const file = e.target.files[0];
+  if (file) processOcr(file);
+  e.target.value = '';
+}
+
+async function processOcr(file) {
+  const prog = document.getElementById('ocrProgress');
+  const status = document.getElementById('ocrStatus');
+  const percent = document.getElementById('ocrPercent');
+  const bar = document.getElementById('ocrProgressBar');
+  prog.style.display = 'block';
+
+  const imgUrl = URL.createObjectURL(file);
+  try {
+    if (typeof Tesseract === 'undefined') {
+      status.textContent = 'Tesseract.js 未加载，请检查网络连接';
+      bar.style.width = '0%'; return;
+    }
+    status.textContent = '正在识别...';
+    bar.style.width = '10%'; percent.textContent = '10%';
+    const result = await Tesseract.recognize(imgUrl, 'chi_sim+eng', {
+      logger: m => {
+        if (m.status === 'recognizing text') {
+          const pct = Math.round(m.progress * 100);
+          bar.style.width = Math.min(pct, 90) + '%';
+          percent.textContent = Math.min(pct, 90) + '%';
+        }
+      }
+    });
+    bar.style.width = '100%'; percent.textContent = '100%';
+    status.textContent = '识别完成';
+    const text = result.data.text;
+    document.getElementById('ocrText').value = text;
+    document.getElementById('ocrResult').style.display = 'block';
+    if (text.trim()) showToast('OCR识别成功，共 ' + text.length + ' 字');
+    else showToast('未识别到文字');
+  } catch(e) {
+    status.textContent = 'OCR识别失败: ' + e.message;
+    bar.style.width = '0%';
+  } finally {
+    URL.revokeObjectURL(imgUrl);
+  }
+}
+
+function sendOcrToCheck() {
+  const text = document.getElementById('ocrText').value;
+  if (!text.trim()) { showToast('请先进行OCR识别'); return; }
+  document.getElementById('checkInput').value = text;
+  switchTab('check');
+  setTimeout(() => runCheck('OCR'), 100);
+}
+
+// ================================================================
+// ASR (Web Speech API)
+// ================================================================
+let asrInstance = null;
+
+function toggleAsr() {
+  const btn = document.getElementById('asrBtn');
+  if (state.asrRecognizing) {
+    stopAsr(); return;
+  }
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    showToast('当前浏览器不支持语音识别，请使用 Chrome/Edge');
+    return;
+  }
+  try {
+    asrInstance = new SpeechRecognition();
+    asrInstance.lang = 'zh-CN';
+    asrInstance.continuous = true;
+    asrInstance.interimResults = true;
+    asrInstance.maxAlternatives = 1;
+
+    asrInstance.onresult = function(e) {
+      let finalText = '';
+      let interimText = '';
+      for (let i = e.resultIndex; i < e.results.length; i++) {
+        if (e.results[i].isFinal) finalText += e.results[i][0].transcript;
+        else interimText += e.results[i][0].transcript;
+      }
+      const ta = document.getElementById('asrText');
+      if (finalText) ta.value += finalText;
+      document.getElementById('asrStatus').textContent = interimText ? '正在听: ' + interimText : '语音识别中...';
+    };
+    asrInstance.onerror = function(e) {
+      if (e.error !== 'no-speech' && e.error !== 'aborted') {
+        showToast('语音识别错误: ' + e.error);
+        stopAsr();
+      }
+    };
+    asrInstance.onend = function() {
+      if (state.asrRecognizing) {
+        // Auto-restart for continuous recognition
+        try { asrInstance.start(); } catch(e) {}
+      }
+    };
+
+    asrInstance.start();
+    state.asrRecognizing = true;
+    btn.className = 'asr-btn listening';
+    document.getElementById('asrStatus').textContent = '正在聆听...';
+    document.getElementById('asrProgressWrap').style.display = 'block';
+    showToast('语音识别已开启');
+  } catch(e) {
+    showToast('启动语音识别失败: ' + e.message);
+  }
+}
+
+function stopAsr() {
+  if (asrInstance) {
+    try { asrInstance.stop(); } catch(e) {}
+    asrInstance = null;
+  }
+  state.asrRecognizing = false;
+  document.getElementById('asrBtn').className = 'asr-btn idle';
+  document.getElementById('asrStatus').textContent = '语音识别已停止';
+  document.getElementById('asrProgressWrap').style.display = 'none';
+  const text = document.getElementById('asrText').value;
+  if (text.trim()) showToast('语音识别结束，共 ' + text.length + ' 字');
+}
+
+function clearAsr() {
+  document.getElementById('asrText').value = '';
+  document.getElementById('asrStatus').textContent = '已清空';
+}
+
+function sendAsrToCheck() {
+  const text = document.getElementById('asrText').value;
+  if (!text.trim()) { showToast('请先进行语音识别'); return; }
+  document.getElementById('checkInput').value = text;
+  switchTab('check');
+  setTimeout(() => runCheck('ASR'), 100);
+}
+
+function loadAsrFile(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(ev) {
+    document.getElementById('asrText').value = ev.target.result;
+    showToast('加载成功');
+  };
+  reader.readAsText(file, 'UTF-8');
+  e.target.value = '';
+}
+
+// ================================================================
+// LIBRARY & WORDS
+// ================================================================
+function getAllActiveWords() {
+  const r = [], keys = ['politics','ethics','ad','vulgar','teaching','custom'];
+  keys.forEach((k,idx) => {
+    if (!state.activeCategories[idx]) return;
+    if (k === 'custom') {
+      state.customWords.forEach(w => { if (!state.whitelist.includes(w.word)) r.push({word:w.word,cat:k,catId:idx,sev:w.severity||'medium'}); });
+    } else {
+      (DEF[k]||[]).forEach(w => { if (!state.whitelist.includes(w)) r.push({word:w,cat:k,catId:idx,sev:k==='politics'||k==='ethics'?'high':'medium'}); });
+    }
+  });
+  return r;
+}
+
+function getAllWordsByCat() {
+  const r = {};
+  CATS.forEach(c => {
+    const key = c.key;
+    const words = [];
+    if (key === 'custom') state.customWords.forEach(w => words.push({word:w.word,sev:w.severity||'medium'}));
+    else (DEF[key]||[]).forEach(w => words.push({word:w,sev:key==='politics'||key==='ethics'?'high':'medium'}));
+    r[key] = words;
+  });
+  return r;
+}
+
+function renderLibrary() {
+  const all = getAllWordsByCat();
+  const container = document.getElementById('libraryCards');
+  let html = '';
+  CATS.forEach((cat,idx) => {
+    const words = all[cat.key]||[];
+    html += `<div class="card" style="border-left:4px solid ${cat.color}">
+      <div class="card-hd"><div class="card-tt">${cat.icon} ${cat.name}</div><span style="font-size:11px;color:var(--g500);">${words.length} 词</span></div>
+      <div class="wg">${words.length===0?'<span style="color:var(--g400);font-size:12px;">暂无</span>':words.map(w=>{const sl=w.sev==='high'?'&#128308;':w.sev==='medium'?'&#128992;':'&#128994;';return`<span class="wt" style="cursor:pointer" onclick="showWordDetail('${esc(w.word)}','${cat.name}','${w.sev}','${cat.key}')">${sl} ${esc(w.word)}</span>`;}).join('')}</div>
+    </div>`;
+  });
+  container.innerHTML = html;
+  CATS.forEach((c,idx) => { const el=document.getElementById('catCount'+idx); if(el)el.textContent=c.key==='custom'?state.customWords.length:(DEF[c.key]||[]).length; });
+}
+
+function addCustomWord() {
+  const word = document.getElementById('customWordInput').value.trim();
+  if (!word) { showToast('请输入词汇'); return; }
+  const cat = document.getElementById('customCategory').value;
+  const sev = document.getElementById('customSeverity').value;
+  if (state.customWords.some(w=>w.word===word)) { showToast('已存在'); return; }
+  state.customWords.push({word,category:cat,severity:sev});
+  document.getElementById('customWordInput').value = '';
+  save(); renderLibrary(); updateBadges(); updateCustomWordList(); updateStats(); showToast('已添加');
+}
+
+function deleteCustomWord(word) {
+  if (!confirm('删除「'+word+'」？')) return;
+  state.customWords = state.customWords.filter(w=>w.word!==word);
+  save(); renderLibrary(); updateBadges(); updateCustomWordList(); updateStats();
+}
+
+function updateCustomWordList() {
+  const container = document.getElementById('customWordList');
+  document.getElementById('customWordCount').textContent = state.customWords.length;
+  if (!state.customWords.length) { container.innerHTML = '<span style="color:var(--g400);font-size:12px;">暂无</span>'; return; }
+  let html = '';
+  state.customWords.forEach(w => {
+    const cn = CATS[CAT_KEY[w.category]??5].name;
+    html += `<div class="vi"><span class="vw">${esc(w.word)}</span><span style="font-size:11px;color:var(--g500)">${cn}</span><span class="vs s${w.severity[0]}">${sevText(w.severity)}</span><span style="cursor:pointer;color:var(--d);font-size:12px;" onclick="deleteCustomWord('${esc(w.word)}')">&times;</span></div>`;
+  });
+  container.innerHTML = html;
+}
+
+function addWhitelist() {
+  const word = document.getElementById('whitelistInput').value.trim();
+  if (!word) { showToast('请输入词汇'); return; }
+  if (state.whitelist.includes(word)) { showToast('已存在'); return; }
+  state.whitelist.push(word);
+  document.getElementById('whitelistInput').value = '';
+  save(); updateWhitelist(); showToast('已添加白名单');
+}
+
+function removeWhitelist(word) { state.whitelist = state.whitelist.filter(w=>w!==word); save(); updateWhitelist(); }
+
+function updateWhitelist() {
+  const container = document.getElementById('whitelistContainer');
+  document.getElementById('whitelistCount').textContent = state.whitelist.length;
+  if (!state.whitelist.length) { container.innerHTML = '<span style="color:var(--g400);font-size:12px;">暂无</span>'; return; }
+  container.innerHTML = state.whitelist.map(w => `<span class="wt" style="background:var(--sl);border-color:#a7f3d0;">&#9989; ${esc(w)}<span style="cursor:pointer;margin-left:3px;color:var(--d);" onclick="removeWhitelist('${esc(w)}')">&times;</span></span>`).join('');
+}
+
+function updateScopeInfo() {
+  const checks = document.querySelectorAll('#categoryToggles input');
+  let allOn = true, anyOn = false;
+  checks.forEach((ch,idx) => { state.activeCategories[idx]=ch.checked; if(ch.checked)anyOn=true; else allOn=false; });
+  document.getElementById('activeScopeInfo').textContent = !anyOn?'无' : allOn?'全部类别':[...checks].filter((ch,i)=>ch.checked).map((ch,i)=>CATS[i].name).join(',');
+  save();
+}
+
+// ================================================================
+// HISTORY
+// ================================================================
+function updateHistory() {
+  const container = document.getElementById('historyContent');
+  const badge = document.getElementById('historyBadge');
+  badge.textContent = state.history.length;
+  if (!state.history.length) { container.innerHTML = '<div class="es"><div class="ei">&#128203;</div><p>暂无记录</p></div>'; return; }
+  let html = '<div class="tw"><table><thead><tr><th>时间</th><th>内容</th><th>违规</th><th>NLP</th><th>风险</th></tr></thead><tbody>';
+  state.history.slice(0,100).forEach(h => {
+    const level = h.total===0?'&#9989;':h.hasHigh?'&#9888;<span style="color:var(--d)">高危</span>':'&#9888;<span style="color:var(--w)">中危</span>';
+    html += `<tr><td style="font-size:11px;white-space:nowrap;">${h.time}</td><td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(h.textPreview)}</td><td>${h.total}</td><td>${h.nlpCount||0}</td><td>${level}</td></tr>`;
+  });
+  html += '</tbody></table></div>';
+  container.innerHTML = html;
+}
+
+function clearHistory() { if(!confirm('确定清空？'))return; state.history=[]; save(); updateHistory(); updateStats(); showToast('已清空'); }
+function exportHistory() {
+  if(!state.history.length){showToast('无数据');return;}
+  let csv='﻿时间,内容,违规数,NLP,含高危\n';
+  state.history.forEach(h=>{csv+=`${h.time},${(h.textPreview||'').replace(/,/g,'，')},${h.total},${h.nlpCount||0},${h.hasHigh?'是':'否'}\n`;});
+  dl(csv,'检测历史.csv','text/csv;charset=utf-8');showToast('导出成功');
+}
+
+// ================================================================
+// STATS & RISK
+// ================================================================
+function updateStats() {
+  const totalC = state.history.length;
+  const totalV = state.history.reduce((s,h)=>s+h.total,0);
+  const clean = state.history.filter(h=>h.total===0).length;
+  const highRisk = state.history.filter(h=>h.hasHigh).length;
+  const nlpHits = state.nlpTotalHits;
+  const riskScore = totalC > 0 ? Math.min(100, Math.round((totalV / totalC) * 50 + (highRisk / totalC) * 50)) : 0;
+
+  document.getElementById('stTotalC').textContent = totalC;
+  document.getElementById('stTotalV').textContent = totalV;
+  document.getElementById('stClean').textContent = clean;
+  document.getElementById('stHighRisk').textContent = highRisk;
+  document.getElementById('stNlpHits').textContent = nlpHits;
+  document.getElementById('stRiskScore').textContent = riskScore;
+
+  // Category distribution
+  const cc = [0,0,0,0,0,0];
+  const wc = {};
+  state.history.forEach(h => { (h.violations||[]).forEach(v => { const ci=CAT_KEY[v.cat]??5; if(ci>=0&&ci<=5)cc[ci]++; wc[v.word]=(wc[v.word]||0)+1; }); });
+  const chart = document.getElementById('categoryChart');
+  const maxC = Math.max(...cc,1);
+  chart.innerHTML = CATS.map((c,i) => { const pct=(cc[i]/maxC)*100, h=Math.max(pct*1.4, cc[i]>0?16:3); return `<div class="bar" style="height:${h}px;background:${c.color}"><span class="bv">${cc[i]}</span><span class="bl">${c.name.replace('类','').replace('师德师风','师德')}</span></div>`; }).join('');
+
+  // Top words
+  const topC = document.getElementById('topWordsChart');
+  const sorted = Object.entries(wc).sort((a,b)=>b[1]-a[1]).slice(0,20);
+  if (!sorted.length) { topC.innerHTML = '<div class="es"><p>暂无数据</p></div>'; return; }
+  const totalWV = state.history.filter(h=>h.total>0).length||1;
+  topC.innerHTML = '<div class="tw"><table><thead><tr><th>#</th><th>违禁词</th><th>次数</th><th>占比</th></tr></thead><tbody>' +
+    sorted.map(([w,c],i) => `<tr><td>${i+1}</td><td><strong>${esc(w)}</strong></td><td>${c}</td><td>${(c/totalWV*100).toFixed(1)}%</td></tr>`).join('') +
+    '</tbody></table></div>';
+
+  // Trend
+  const trend = document.getElementById('trendChart');
+  const recent = state.history.slice(0,30).reverse();
+  if (!recent.length) { trend.innerHTML = '<div class="es"><p>暂无</p></div>'; return; }
+  const maxT = Math.max(...recent.map(h=>h.total), 1);
+  trend.innerHTML = '<div style="display:flex;gap:2px;align-items:flex-end;height:80px;">' +
+    recent.map(h => {
+      const pct = (h.total / maxT) * 100;
+      const color = h.total === 0 ? 'var(--s)' : h.hasHigh ? 'var(--d)' : 'var(--w)';
+      return `<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:2px;">
+        <div style="width:100%;height:${Math.max(pct*0.7, 2)}px;background:${color};border-radius:2px;border: 2px solid transparent;background-clip:content-box;" title="${h.time}: ${h.total}违规"></div>
+      </div>`;
+    }).join('') + '</div>' +
+    '<div style="font-size:10px;color:var(--g400);text-align:center;margin-top:4px;">← 近30次检测趋势（从旧到新）</div>';
+
+  computeRiskAlerts();
+}
+
+function computeRiskAlerts() {
+  const container = document.getElementById('riskAlerts');
+  const banner = document.getElementById('alertBanner');
+  const alerts = [];
+
+  // Check recent violation rate
+  const recent = state.history.slice(0, 20);
+  const recentViolations = recent.filter(h => h.total > 0).length;
+  if (recent.length >= 5) {
+    const rate = (recentViolations / recent.length) * 100;
+    if (rate > 80) alerts.push({ lvl:'high', msg:'近期违规率 ' + rate.toFixed(0) + '%，风险极高，建议加强审核' });
+    else if (rate > 50) alerts.push({ lvl:'warn', msg:'近期违规率 ' + rate.toFixed(0) + '%，偏高，请注意' });
+    else if (rate < 20 && recent.length > 10) alerts.push({ lvl:'ok', msg:'近期违规率 ' + rate.toFixed(0) + '%，整体可控' });
+  }
+
+  // Check high severity
+  const highRecent = recent.filter(h => h.hasHigh).length;
+  if (highRecent > 3) alerts.push({ lvl:'high', msg:'近20次检测中 ' + highRecent + ' 次含高危违规，需重点关注' });
+  else if (highRecent > 0) alerts.push({ lvl:'warn', msg:'近20次检测中 ' + highRecent + ' 次含高危违规' });
+
+  // Check pending review
+  const pending = state.reviewQueue.filter(i => i.status === 'pending').length;
+  if (pending > 5) alerts.push({ lvl:'warn', msg:'有 ' + pending + ' 条待复核内容等待处理' });
+  else if (pending > 0) alerts.push({ lvl:'info', msg:'有 ' + pending + ' 条待复核内容' });
+
+  // Pending appeals
+  const app = state.appeals.filter(i => i.status === 'pending').length;
+  if (app > 0) alerts.push({ lvl:'info', msg:'有 ' + app + ' 条申诉待处理' });
+
+  // NLP hits
+  if (state.nlpTotalHits > 0) alerts.push({ lvl:'info', msg:'NLP引擎累计命中 ' + state.nlpTotalHits + ' 次，检测到谐音/变体规避行为' });
+
+  if (!alerts.length) alerts.push({ lvl:'ok', msg:'当前无风险预警，状态良好' });
+
+  // Banner (top alert)
+  const topAlert = alerts[0];
+  if (topAlert) {
+    banner.style.display = 'flex';
+    banner.className = 'alert-banner ' + (topAlert.lvl === 'high' ? '' : topAlert.lvl === 'warn' ? 'warn' : 'ok');
+    const icon = topAlert.lvl === 'high' ? '&#9888;' : topAlert.lvl === 'warn' ? '&#9888;' : '&#9989;';
+    banner.innerHTML = `<span>${icon}</span><span>${topAlert.msg}</span><span style="flex:1;"></span><span style="font-size:11px;cursor:pointer;opacity:.7;" onclick="this.parentElement.style.display='none'">关闭</span>`;
+  }
+
+  // Render all alerts
+  container.innerHTML = alerts.map(a => {
+    const cls = a.lvl === 'high' ? '' : a.lvl === 'warn' ? 'warn' : 'ok';
+    const icon = a.lvl === 'high' ? '&#9888;' : a.lvl === 'warn' ? '&#9888;' : '&#9989;';
+    return `<div class="alert-banner ${cls}" style="margin-bottom:4px;">${icon} ${a.msg}</div>`;
+  }).join('');
+}
+
+// ================================================================
+// IMPORT/EXPORT
+// ================================================================
+function showImportModal() { document.getElementById('importModal').classList.add('show'); }
+function closeImportModal() { document.getElementById('importModal').classList.remove('show'); }
+function doImport() {
+  const text = document.getElementById('importTextarea').value.trim();
+  if (!text) { showToast('请输入内容'); return; }
+  const defCat = document.getElementById('importDefaultCat').value;
+  const defSev = document.getElementById('importDefaultSev').value;
+  let added=0, skipped=0;
+  text.split('\n').forEach(line => {
+    line=line.trim(); if(!line) return;
+    let word=line, cat=defCat, sev=defSev;
+    if(line.includes('|')){const p=line.split('|').map(s=>s.trim()); word=p[0]; if(p[1]&&CAT_KEY[p[1]]!==undefined)cat=p[1]; if(p[2]&&['high','medium','low'].includes(p[2]))sev=p[2];}
+    if(!word)return;
+    if(state.customWords.some(w=>w.word===word)){skipped++;return;}
+    state.customWords.push({word,category:cat,severity:sev}); added++;
+  });
+  save(); renderLibrary(); updateBadges(); updateCustomWordList(); updateStats(); closeImportModal();
+  document.getElementById('importTextarea').value = '';
+  showToast(`导入 ${added} 个`+(skipped?`，跳过 ${skipped} 个`:''));
+}
+
+function exportCustomWords() {
+  if(!state.customWords.length){showToast('无数据');return;}
+  dl(state.customWords.map(w=>`${w.word}|${w.category}|${w.severity}`).join('\n'),'自定义词.txt','text/plain;charset=utf-8');showToast('导出成功');
+}
+function clearAllCustom() { if(!state.customWords.length||!confirm('确定清空所有自定义词？'))return; state.customWords=[]; save(); renderLibrary(); updateBadges(); updateCustomWordList(); updateStats(); showToast('已清空'); }
+
+// ================================================================
+// FILE & SAMPLE
+// ================================================================
+function loadTxtFile(e) {
+  const file=e.target.files[0]; if(!file)return;
+  const r=new FileReader(); r.onload=function(ev){document.getElementById('checkInput').value=ev.target.result;showToast('已加载: '+file.name);setTimeout(runCheck,100);}; r.readAsText(file,'UTF-8'); e.target.value='';
+}
+function loadSample() {
+  const s=['各位同学，今天的课程先到这里。\n\n——以下是检测示例——\n1. 你是猪吗？这么简单的题都不会？全班就你拖后腿！\n2. 想要提高成绩的私下加我微信，周末来我家补课，费用优惠。\n3. 这个资料我独家整理，只要50元，扫码购买。\n4. 我保证你跟我学，成绩绝对进全班前三！\n5. 想送老师礼物的，可以直接发红包。\n6. 收fei 补ke 加我VX\n7. 那个谁，傻子一样，站着去！不想学就滚出去！',
+    '尊敬的家长：本学期课程即将结束。我校严格遵守规定，不组织违规补课。祝假期愉快！',
+    '今天学习分数除法。大家看黑板，先回顾上节课内容。\n（正常教学，不含违禁内容。）'];
+  document.getElementById('checkInput').value = s[Math.floor(Math.random()*s.length)];
+  showToast('已加载示例');
+}
+function clearInput() { document.getElementById('checkInput').value=''; document.getElementById('resultArea').style.display='none'; }
+
+function switchTab(id) {
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tab-c').forEach(t=>t.classList.remove('active'));
+  document.querySelector(`[data-tab="${id}"]`).classList.add('active');
+  document.getElementById('tab-'+id).classList.add('active');
+}
+
+// ================================================================
+// BADGES & UTILITIES
+// ================================================================
+function updateBadges() {
+  const total=getAllActiveWords().length;
+  document.getElementById('wordCountBadge').textContent=total+' 个违禁词';
+  document.getElementById('libBadge').textContent=total;
+}
+function updateAll() { renderLibrary(); updateScopeInfo(); updateBadges(); updateHistory(); updateStats(); updateCustomWordList(); updateWhitelist(); }
+
+function showToast(msg) {
+  const t=document.querySelector('.toast'); if(t)t.remove();
+  const el=document.createElement('div'); el.className='toast'; el.textContent=msg;
+  document.body.appendChild(el); setTimeout(()=>el.remove(),2500);
+}
+
+function dl(content,fn,mime) {
+  const b=new Blob([content],{type:mime}); const u=URL.createObjectURL(b);
+  const a=document.createElement('a'); a.href=u; a.download=fn;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(u);
+}
+
+function showWordDetail(word,catName,severity,catKey) {
+  const c=CATS[CAT_KEY[catKey]??5];
+  const sn=severity==='high'?'高危（直接拦截）':severity==='medium'?'中危（弹窗提醒）':'低危（仅记录）';
+  const existing=document.getElementById('wordDetailModal');
+  if(existing&&existing.classList.contains('show'))return;
+  const modal=document.createElement('div'); modal.className='modal-o show'; modal.id='wordDetailModal';
+  modal.innerHTML=`<div class="modal"><h3>违禁词详情</h3>
+    <div><div style="font-size:22px;font-weight:700;color:var(--d);margin:10px 0;">${esc(word)}</div>
+    <table style="width:100%"><tr><td style="width:80px;color:var(--g500)">分类</td><td><span style="padding:2px 10px;border-radius:4px;background:${c.bg};color:${c.color}">${catName}</span></td></tr>
+    <tr><td style="color:var(--g500)">管控</td><td><span class="vs s${severity[0]}">${sn}</span></td></tr>
+    <tr><td style="color:var(--g500)">说明</td><td>${c.desc}</td></tr></table></div>
+    <div class="modal-actions"><button class="btn btn-o" onclick="this.closest('.modal-o').remove()">关闭</button></div></div>`;
+  document.body.appendChild(modal);
+}
+
+// ================================================================
+// EVENTS
+// ================================================================
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    this.classList.add('active');
+    const id = this.dataset.tab;
+    document.querySelectorAll('.tab-c').forEach(t=>t.classList.remove('active'));
+    document.getElementById('tab-'+id).classList.add('active');
+    if (id === 'stats') updateStats();
+    if (id === 'nlp') renderNlpInfo();
+  });
+});
+
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey||e.metaKey) && e.key==='Enter') {
+    const act = document.querySelector('.tab-c.active');
+    if (act && act.id==='tab-check') runCheck();
+  }
+});
+
+// ================================================================
+// START
+// ================================================================
+init();
+</script>
+</body>
+</html>

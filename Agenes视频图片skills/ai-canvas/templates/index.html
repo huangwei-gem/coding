@@ -1,0 +1,820 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Agnes AI 创作工坊</title>
+<style>
+  :root {
+    --primary: #7c3aed;
+    --primary-light: #8b5cf6;
+    --primary-dark: #6d28d9;
+    --bg: #0f0f1a;
+    --surface: #1a1a2e;
+    --surface2: #242442;
+    --border: #2d2d50;
+    --text: #e2e8f0;
+    --text-dim: #94a3b8;
+    --accent-green: #22c55e;
+    --accent-blue: #3b82f6;
+    --radius: 12px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    min-height: 100vh;
+  }
+  .header {
+    background: linear-gradient(135deg, var(--primary-dark), var(--primary));
+    padding: 20px 32px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    border-bottom: 1px solid var(--border);
+  }
+  .header h1 {
+    font-size: 22px; font-weight: 700; letter-spacing: -0.3px;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .header h1 span { background: rgba(255,255,255,0.15); padding: 2px 10px; border-radius: 6px; font-size: 13px; font-weight: 500; }
+  .header-status { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-dim); }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-green); display: inline-block; }
+  .container { display: flex; gap: 0; height: calc(100vh - 68px); }
+  .sidebar {
+    width: 380px; min-width: 380px; background: var(--surface);
+    border-right: 1px solid var(--border); overflow-y: auto; padding: 20px;
+  }
+  .sidebar::-webkit-scrollbar { width: 4px; }
+  .sidebar::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+  .tabs { display: flex; gap: 4px; margin-bottom: 20px; background: var(--surface2); border-radius: var(--radius); padding: 3px; }
+  .tab {
+    flex: 1; padding: 10px; text-align: center; border-radius: 10px;
+    cursor: pointer; font-size: 14px; font-weight: 600; color: var(--text-dim);
+    transition: all .2s; border: none; background: none;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { background: var(--primary); color: #fff; }
+  .form-group { margin-bottom: 14px; }
+  .form-group label {
+    display: block; font-size: 13px; font-weight: 600; color: var(--text-dim); margin-bottom: 5px;
+  }
+  .form-group .hint { font-size: 11px; color: var(--text-dim); opacity: 0.7; margin-top: 3px; }
+  input, textarea, select {
+    width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--surface2); color: var(--text); font-size: 14px;
+    transition: border .2s; outline: none;
+  }
+  input:focus, textarea:focus, select:focus { border-color: var(--primary-light); }
+  textarea { resize: vertical; min-height: 72px; font-family: inherit; }
+  select { cursor: pointer; }
+  input[type="number"] { width: 100%; }
+  .row { display: flex; gap: 12px; }
+  .row .form-group { flex: 1; }
+  .btn {
+    width: 100%; padding: 12px; border-radius: var(--radius); border: none;
+    font-size: 15px; font-weight: 600; cursor: pointer;
+    transition: all .2s; display: flex; align-items: center; justify-content: center; gap: 8px;
+  }
+  .btn-primary { background: var(--primary); color: #fff; }
+  .btn-primary:hover { background: var(--primary-light); transform: translateY(-1px); }
+  .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  .btn-secondary { background: var(--surface2); color: var(--text); }
+  .btn-secondary:hover { background: var(--border); }
+  .main {
+    flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column;
+  }
+  .main::-webkit-scrollbar { width: 6px; }
+  .main::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  .result-area {
+    flex: 1; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; min-height: 400px;
+  }
+  .result-placeholder { text-align: center; color: var(--text-dim); padding: 60px 20px; }
+  .result-placeholder .icon { font-size: 48px; margin-bottom: 16px; opacity: 0.3; }
+  .result-placeholder h3 { font-size: 18px; margin-bottom: 8px; color: var(--text); }
+  .result-card { width: 100%; max-width: 720px; background: var(--surface); border-radius: var(--radius); border: 1px solid var(--border); overflow: hidden; }
+  .result-card img, .result-card video { width: 100%; display: block; }
+  .result-card .meta { padding: 16px; border-top: 1px solid var(--border); font-size: 13px; color: var(--text-dim); }
+  .result-card .meta a { color: var(--primary-light); text-decoration: none; }
+  .result-card .meta a:hover { text-decoration: underline; }
+  .progress-bar { width: 100%; height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; margin: 12px 0; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg, var(--primary), var(--accent-blue)); border-radius: 3px; transition: width .5s ease; }
+  .progress-text { font-size: 13px; color: var(--text-dim); text-align: center; }
+  .history-section { margin-top: 24px; }
+  .settings-btn {
+    width: 28px; height: 28px; border-radius: 6px; border: 1px solid var(--border);
+    background: var(--surface2); color: var(--text-dim); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 14px; transition: all .2s; margin-left: auto; flex-shrink: 0;
+  }
+  .settings-btn:hover { border-color: var(--primary-light); color: var(--text); }
+  .settings-dropdown {
+    position: absolute; right: 0; top: 100%; margin-top: 4px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    padding: 8px; min-width: 180px; z-index: 100;
+    box-shadow: 0 8px 24px rgba(0,0,0,.4); display: none;
+  }
+  .settings-dropdown.open { display: block; }
+  .settings-dropdown .sd-item {
+    padding: 8px 12px; border-radius: 6px; cursor: pointer;
+    font-size: 13px; color: var(--text-dim); transition: all .2s;
+    display: flex; align-items: center; gap: 8px; border: none; background: none; width: 100%;
+  }
+  .settings-dropdown .sd-item:hover { background: var(--surface2); color: var(--text); }
+  .settings-dropdown .sd-item.danger:hover { background: rgba(239,68,68,.15); color: #ef4444; }
+  .settings-dropdown .sd-divider { height: 1px; background: var(--border); margin: 4px 0; }
+  .history-header {
+    display: flex; align-items: center; gap: 8px; cursor: pointer;
+    font-size: 14px; color: var(--text-dim); margin-bottom: 12px; user-select: none;
+    padding: 6px 8px; border-radius: 6px; transition: background .2s;
+  }
+  .history-header:hover { background: var(--surface2); }
+  .history-header .arrow { transition: transform .2s; font-size: 12px; }
+  .history-header .arrow.collapsed { transform: rotate(-90deg); }
+  .history-body { overflow: hidden; transition: max-height .3s ease; max-height: 0; }
+  .history-body.open { max-height: 2000px; }
+  .history-item {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px; background: var(--surface); border-radius: 8px;
+    border: 1px solid var(--border); margin-bottom: 8px; cursor: pointer; transition: all .2s;
+  }
+  .history-item:hover { border-color: var(--primary); }
+  .history-item .thumb { width: 48px; height: 48px; border-radius: 6px; object-fit: cover; background: var(--surface2); }
+  .history-item .info { flex: 1; min-width: 0; }
+  .history-item .info .title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .history-item .info .sub { font-size: 11px; color: var(--text-dim); }
+  .history-item .type-badge { padding: 2px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+  .type-badge.image { background: rgba(124,58,237,0.2); color: var(--primary-light); }
+  .type-badge.video { background: rgba(59,130,246,0.2); color: var(--accent-blue); }
+  .spinner { width: 32px; height: 32px; border: 3px solid var(--border); border-top-color: var(--primary-light); border-radius: 50%; animation: spin .8s linear infinite; margin: 20px auto; }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  .presets { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 14px; }
+  .preset-btn { padding: 4px 12px; border-radius: 6px; border: 1px solid var(--border); background: var(--surface2); color: var(--text-dim); font-size: 12px; cursor: pointer; transition: all .2s; }
+  .preset-btn:hover { border-color: var(--primary-light); color: var(--text); }
+  .image-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 16px; width: 100%; }
+
+  /* Upload area */
+  .upload-area {
+    border: 2px dashed var(--border); border-radius: var(--radius);
+    padding: 16px; text-align: center; cursor: pointer;
+    transition: all .2s; position: relative;
+  }
+  .upload-area:hover, .upload-area.dragover { border-color: var(--primary-light); background: rgba(124,58,237,0.05); }
+  .upload-area input[type="file"] { display: none; }
+  .upload-area .upload-label { font-size: 13px; color: var(--text-dim); }
+  .upload-area .upload-label strong { color: var(--primary-light); }
+  .upload-preview { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+  .upload-preview .thumb-wrap { position: relative; width: 64px; height: 64px; }
+  .upload-preview .thumb-wrap img { width: 100%; height: 100%; object-fit: cover; border-radius: 6px; border: 1px solid var(--border); }
+  .upload-preview .thumb-wrap .remove { position: absolute; top: -6px; right: -6px; width: 18px; height: 18px; border-radius: 50%; background: #ef4444; color: #fff; font-size: 12px; line-height: 18px; text-align: center; cursor: pointer; border: none; }
+  .upload-info { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+
+  /* URL + upload toggle */
+  .input-method-toggle {
+    display: flex; gap: 4px; margin-bottom: 10px; background: var(--surface2);
+    border-radius: 6px; padding: 2px; font-size: 12px;
+  }
+  .input-method-toggle button {
+    flex: 1; padding: 5px; text-align: center; border-radius: 5px;
+    cursor: pointer; border: none; background: none; color: var(--text-dim); font-size: 12px; transition: all .2s;
+  }
+  .input-method-toggle button.active { background: var(--primary); color: #fff; }
+
+  @media (max-width: 768px) {
+    .container { flex-direction: column; height: auto; }
+    .sidebar { width: 100%; min-width: unset; border-right: none; border-bottom: 1px solid var(--border); }
+    .header { padding: 14px 16px; }
+    .header h1 { font-size: 17px; }
+  }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Agnes AI 创作工坊 <span>v2.0</span></h1>
+  <div class="header-status"><span class="status-dot"></span>API Ready</div>
+</div>
+
+<div class="container">
+  <!-- Sidebar -->
+  <div class="sidebar">
+    <div class="tabs" id="tabBar">
+      <button class="tab active" data-tab="image">图片生成</button>
+      <button class="tab" data-tab="video">视频生成</button>
+    </div>
+
+    <!-- ====== Image Form ====== -->
+    <form id="imageForm">
+      <div class="form-group">
+        <label>模型版本</label>
+        <select name="model">
+          <option value="agnes-image-2.1-flash">agnes-image-2.1-flash（文生图，推荐）</option>
+          <option value="agnes-image-2.0-flash">agnes-image-2.0-flash（图生图/编辑）</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label>提示词 (Prompt)</label>
+        <textarea name="prompt" placeholder="描述你想要生成的图片，支持中文...">一只发光的浮空城市，悬浮于晨雾峡谷之上，电影级写实</textarea>
+        <div class="hint">支持中文，API 会自动翻译为英文</div>
+      </div>
+      <div class="form-group">
+        <label>预设 Prompt</label>
+        <div class="presets">
+          <button type="button" class="preset-btn" data-prompt="一只发光的浮空城市，悬浮于晨雾峡谷之上，电影级写实">浮空城市</button>
+          <button type="button" class="preset-btn" data-prompt="未来城市集市，飞行汽车，全息招牌，赛博朋克风格">赛博朋克</button>
+          <button type="button" class="preset-btn" data-prompt="一只可爱的柴犬在樱花树下睡觉，温暖的阳光">柴犬</button>
+          <button type="button" class="preset-btn" data-prompt="A beautiful fantasy landscape with mountains, waterfalls, and a giant moon, digital art">Fantasy</button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="form-group">
+          <label>尺寸</label>
+          <select name="size">
+            <option value="1024x1024">1024×1024（方形）</option>
+            <option value="1024x768">1024×768（横屏）</option>
+            <option value="1152x864">1152×864（横屏）</option>
+            <option value="768x1024">768×1024（竖屏）</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>数量</label>
+          <input type="number" name="n" min="1" max="4" value="1">
+        </div>
+      </div>
+
+      <!-- Reference image: URL vs File -->
+      <div class="form-group">
+        <label>参考图片（图生图模式）</label>
+        <div class="input-method-toggle">
+          <button type="button" class="active" data-method="url">URL</button>
+          <button type="button" data-method="file">本地上传</button>
+        </div>
+        <div class="ref-input url-input">
+          <input type="url" name="image_url" placeholder="输入图片 URL...">
+        </div>
+        <div class="ref-input file-input" style="display:none">
+          <div class="upload-area" id="imageUploadArea">
+            <input type="file" name="images" accept="image/*" multiple>
+            <div class="upload-label">点击选择图片 或 拖拽到此处</div>
+            <div class="upload-preview" id="imagePreview"></div>
+          </div>
+        </div>
+        <div class="hint">选中"图生图"模型后有效。支持 PNG / JPG</div>
+      </div>
+
+      <button type="submit" class="btn btn-primary" id="generateImageBtn">生成图片</button>
+    </form>
+
+    <!-- ====== Video Form ====== -->
+    <form id="videoForm" style="display:none">
+      <div class="form-group">
+        <label>提示词 (Prompt)</label>
+        <textarea name="prompt" placeholder="描述你想要生成的视频，建议用英文以获得更稳定效果...">A cinematic shot of a cat walking on a sunny beach at sunset, slow camera pan</textarea>
+        <div class="hint">支持中文，API 会自动翻译。英文 prompt 效果更稳定</div>
+      </div>
+      <div class="form-group">
+        <label>预设 Prompt</label>
+        <div class="presets">
+          <button type="button" class="preset-btn" data-prompt="A cinematic shot of a cat walking on a sunny beach at sunset, slow camera pan">海滩猫</button>
+          <button type="button" class="preset-btn" data-prompt="Drone footage of a futuristic city with flying cars, neon lights, cinematic">未来城市</button>
+          <button type="button" class="preset-btn" data-prompt="Close up of a flower blooming in slow motion, nature documentary style">花开</button>
+          <button type="button" class="preset-btn" data-prompt="一只在日落时分的海滩上散步的猫，电影感镜头，慢速摇镜">日落海滩（中文）</button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="form-group"><label>宽度</label><input type="number" name="width" value="1152" min="256" max="1920"></div>
+        <div class="form-group"><label>高度</label><input type="number" name="height" value="768" min="256" max="1080"></div>
+      </div>
+      <div class="row">
+        <div class="form-group">
+          <label>帧数 (8n+1)</label>
+          <select name="num_frames">
+            <option value="121">121 帧 (~5秒)</option>
+            <option value="241">241 帧 (~10秒)</option>
+            <option value="441">441 帧 (~18秒)</option>
+          </select>
+        </div>
+        <div class="form-group"><label>帧率 (fps)</label><input type="number" name="frame_rate" value="24" min="1" max="60"></div>
+      </div>
+      <div class="row">
+        <div class="form-group"><label>随机种子 (可选)</label><input type="number" name="seed" placeholder="留空随机"></div>
+        <div class="form-group">
+          <label>模式</label>
+          <select name="mode">
+            <option value="">普通</option>
+            <option value="keyframes">关键帧动画</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Video reference image -->
+      <div class="form-group">
+        <label>参考图片（图生视频/关键帧）</label>
+        <div class="input-method-toggle">
+          <button type="button" class="active" data-method="url">URL</button>
+          <button type="button" data-method="file">本地上传</button>
+        </div>
+        <div class="ref-input url-input">
+          <input type="url" name="image_url" placeholder="输入图片 URL（多图用逗号分隔）">
+        </div>
+        <div class="ref-input file-input" style="display:none">
+          <div class="upload-area" id="videoUploadArea">
+            <input type="file" name="images" accept="image/*" multiple>
+            <div class="upload-label">点击选择图片 或 拖拽到此处</div>
+            <div class="upload-preview" id="videoPreview"></div>
+          </div>
+        </div>
+        <div class="hint">图生视频：1 张；关键帧/多图：2 张</div>
+      </div>
+
+      <div class="form-group">
+        <label>负面提示词 (Negative Prompt)</label>
+        <input type="text" name="negative_prompt" placeholder="模糊，抖动，扭曲...">
+      </div>
+      <button type="submit" class="btn btn-primary" id="generateVideoBtn">生成视频</button>
+    </form>
+  </div>
+
+  <!-- Main content -->
+  <div class="main">
+    <div class="result-area" id="resultArea">
+      <div class="result-placeholder" id="placeholder">
+        <div class="icon">🎨</div>
+        <h3>开始创作</h3>
+        <p>在左侧填写参数，点击生成按钮<br>图片/视频结果将显示在这里</p>
+      </div>
+      <div id="resultContent" style="display:none; width:100%"></div>
+    </div>
+    <div class="history-section" id="historySection" style="display:none">
+      <div class="history-header" onclick="toggleHistory()">
+        <span class="arrow" id="historyArrow">▼</span>
+        <span>历史记录</span>
+        <span id="historyCount" style="font-size:12px;color:var(--border)"></span>
+        <button class="settings-btn" onclick="event.stopPropagation();toggleSettings()" title="设置">⚙</button>
+        <div class="settings-dropdown" id="settingsDropdown">
+          <button class="sd-item" onclick="event.stopPropagation();showHistoryStats()">📊 查看存储统计</button>
+          <div class="sd-divider"></div>
+          <button class="sd-item danger" onclick="event.stopPropagation();confirmClear()">🗑 清除所有历史记录</button>
+        </div>
+      </div>
+      <div class="history-body" id="historyBody">
+        <div id="historyList"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const API_BASE = '';
+let currentTab = 'image';
+let pollingTimer = null;
+let lastVideoPrompt = '';
+const history = JSON.parse(localStorage.getItem('agnes_history') || '[]');
+
+// ---- Tab switching ----
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    currentTab = tab.dataset.tab;
+    document.getElementById('imageForm').style.display = currentTab === 'image' ? '' : 'none';
+    document.getElementById('videoForm').style.display = currentTab === 'video' ? '' : 'none';
+    showPlaceholder();
+  });
+});
+
+// ---- Preset buttons ----
+document.querySelectorAll('.preset-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    const form = btn.closest('form');
+    form.querySelector('textarea[name="prompt"]').value = btn.dataset.prompt;
+  });
+});
+
+// ---- Input method toggle (URL vs File) ----
+document.querySelectorAll('.input-method-toggle').forEach(toggle => {
+  toggle.querySelectorAll('button').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const parent = toggle.parentElement;
+      toggle.querySelectorAll('button').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const method = btn.dataset.method;
+      parent.querySelectorAll('.ref-input').forEach(el => el.style.display = 'none');
+      parent.querySelector('.' + method + '-input').style.display = '';
+    });
+  });
+});
+
+// ---- File upload areas (drag & drop) ----
+function setupUploadArea(areaId, previewId) {
+  const area = document.getElementById(areaId);
+  const input = area.querySelector('input[type="file"]');
+  const preview = document.getElementById(previewId);
+
+  area.addEventListener('click', () => input.click());
+
+  area.addEventListener('dragover', (e) => {
+    e.preventDefault(); area.classList.add('dragover');
+  });
+  area.addEventListener('dragleave', () => area.classList.remove('dragover'));
+  area.addEventListener('drop', (e) => {
+    e.preventDefault(); area.classList.remove('dragover');
+    if (e.dataTransfer.files.length) {
+      input.files = e.dataTransfer.files;
+      updatePreview(input, preview);
+    }
+  });
+
+  input.addEventListener('change', () => updatePreview(input, preview));
+}
+
+function updatePreview(input, previewEl) {
+  previewEl.innerHTML = '';
+  for (const file of input.files) {
+    const reader = new FileReader();
+    const wrap = document.createElement('div');
+    wrap.className = 'thumb-wrap';
+    reader.onload = (e) => {
+      wrap.innerHTML = `<img src="${e.target.result}" alt="preview">`;
+    };
+    reader.readAsDataURL(file);
+    previewEl.appendChild(wrap);
+  }
+}
+
+setupUploadArea('imageUploadArea', 'imagePreview');
+setupUploadArea('videoUploadArea', 'videoPreview');
+
+// ---- Build FormData (for upload) or JSON body ----
+function buildRequest(form, tab) {
+  const hasFiles = form.querySelector('input[type="file"]')?.files?.length > 0;
+  const urlVal = form.querySelector('input[name="image_url"]')?.value?.trim();
+
+  if (hasFiles) {
+    // Multipart upload
+    const fd = new FormData(form);
+    // Remove unused fields
+    fd.delete('image_url');
+    if (tab === 'video') {
+      // Ensure proper video params
+    }
+    return { type: 'multipart', data: fd, endpoint: tab === 'image' ? '/api/generate-image/upload' : '/api/create-video/upload' };
+  } else {
+    // JSON
+    const fd = new FormData(form);
+    const body = {};
+    for (const [key, val] of fd.entries()) {
+      if (key === 'image_url' && val) {
+        body['images'] = val.split(',').map(s => s.trim()).filter(Boolean);
+      } else if (key === 'images') {
+        // skip (file input, handled above)
+      } else if (key === 'n' || key === 'width' || key === 'height' || key === 'num_frames' || key === 'frame_rate' || key === 'seed') {
+        const num = parseInt(val);
+        if (!isNaN(num)) body[key] = num;
+      } else if (key === 'mode' && val) {
+        body[key] = val;
+      } else if (key === 'negative_prompt' && val) {
+        body[key] = val;
+      } else if (val) {
+        body[key] = val;
+      }
+    }
+    return { type: 'json', data: body, endpoint: tab === 'image' ? '/api/generate-image' : '/api/create-video' };
+  }
+}
+
+// ---- Image generation ----
+document.getElementById('imageForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('generateImageBtn');
+  const isUpload = e.target.querySelector('input[type="file"]')?.files?.length > 0;
+
+  btn.disabled = true; btn.textContent = isUpload ? '正在上传图片...' : '正在生成图片...';
+  let startTime = Date.now();
+  let statusTimer = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    if (elapsed < 5 && isUpload) btn.textContent = '正在上传图片...';
+    else btn.textContent = `正在生成图片... (${elapsed}s)`;
+  }, 1000);
+
+  const req = buildRequest(e.target, 'image');
+  const opts = req.type === 'multipart'
+    ? { method: 'POST', body: req.data }
+    : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req.data) };
+
+  try {
+    const ctrl = new AbortController();
+    const timeoutId = setTimeout(() => ctrl.abort(), 300000); // 5min timeout
+    opts.signal = ctrl.signal;
+    const res = await fetch(API_BASE + req.endpoint, opts);
+    clearTimeout(timeoutId);
+    const data = await res.json();
+    if (data.error) throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error));
+    showImageResult(data, req.type === 'json' ? req.data : { prompt: '图片生成' });
+    addHistory('image', req.type === 'json' ? (req.data.prompt || '') : '本地上传', data);
+  } catch (err) {
+    if (err.name === 'AbortError') showError('请求超时，请稍后重试');
+    else showError(err.message);
+  } finally {
+    clearInterval(statusTimer);
+    btn.disabled = false; btn.textContent = '生成图片';
+  }
+});
+
+// ---- Video generation ----
+document.getElementById('videoForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('generateVideoBtn');
+  const isUpload = e.target.querySelector('input[type="file"]')?.files?.length > 0;
+
+  btn.disabled = true; btn.textContent = isUpload ? '正在上传图片...' : '正在提交...';
+  let startTime = Date.now();
+  let statusTimer = setInterval(() => {
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    if (elapsed < 5 && isUpload) btn.textContent = '正在上传图片...';
+    else btn.textContent = `正在提交... (${elapsed}s)`;
+  }, 1000);
+
+  const req = buildRequest(e.target, 'video');
+  lastVideoPrompt = req.type === 'json' ? (req.data.prompt || '') : '本地上传';
+  const opts = req.type === 'multipart'
+    ? { method: 'POST', body: req.data }
+    : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req.data) };
+
+  try {
+    const ctrl = new AbortController();
+    const timeoutId = setTimeout(() => ctrl.abort(), 300000);
+    opts.signal = ctrl.signal;
+    const res = await fetch(API_BASE + req.endpoint, opts);
+    clearTimeout(timeoutId);
+    const data = await res.json();
+    if (data.error) throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error));
+    const taskId = data.task_id || data.id;
+    showVideoProgress(taskId, data);
+  } catch (err) {
+    if (err.name === 'AbortError') showError('请求超时，请稍后重试');
+    else showError(err.message);
+    clearInterval(statusTimer);
+    btn.disabled = false; btn.textContent = '生成视频';
+  }
+});
+
+// ---- Video polling ----
+function showVideoProgress(taskId, params) {
+  const area = document.getElementById('resultContent');
+  area.style.display = 'block';
+  area.innerHTML = `
+    <div class="result-card" style="text-align:center;padding:40px">
+      <div class="spinner"></div>
+      <div style="font-size:16px;font-weight:600;margin:12px 0">视频生成中...</div>
+      <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
+      <div class="progress-text" id="progressText">排队中...</div>
+      <div style="font-size:12px;color:var(--text-dim);margin-top:8px">任务ID: ${taskId}</div>
+    </div>
+  `;
+  document.getElementById('placeholder').style.display = 'none';
+  pollVideo(taskId);
+}
+
+async function pollVideo(taskId) {
+  const fn = async () => {
+    try {
+      const res = await fetch(API_BASE + `/api/video-status/${taskId}`);
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      const progress = data.progress || 0;
+      const status = data.status || 'unknown';
+      const fill = document.getElementById('progressFill');
+      const text = document.getElementById('progressText');
+      if (fill) fill.style.width = progress + '%';
+      if (text) {
+        const m = { queued: '排队中...', in_progress: `生成中 ${progress}%`, completed: '已完成!', failed: '失败' };
+        text.textContent = m[status] || status;
+      }
+      if (status === 'completed') { showVideoResult(data, taskId); return; }
+      if (status === 'failed') { showError('视频生成失败'); return; }
+      pollingTimer = setTimeout(fn, 3000);
+    } catch (err) { showError('轮询失败: ' + err.message); }
+  };
+  await fn();
+}
+
+function showImageResult(data, params) {
+  const area = document.getElementById('resultContent');
+  area.style.display = 'block';
+  const urls = data.data ? data.data.map(d => d.url).filter(Boolean) : [];
+  area.innerHTML = `<div class="image-grid">${urls.map(url => `
+    <div class="result-card">
+      <a href="${url}" target="_blank"><img src="${url}" loading="lazy" alt="generated"></a>
+      <div class="meta"><a href="${url}" target="_blank">打开原图 →</a></div>
+    </div>`).join('')}</div>`;
+  document.getElementById('placeholder').style.display = 'none';
+}
+
+function showVideoResult(data, taskId) {
+  const url = data.remixed_from_video_id || data.video_url || '';
+  const area = document.getElementById('resultContent');
+  area.style.display = 'block';
+  area.innerHTML = `
+    <div class="result-card">
+      ${url ? `<video src="${url}" controls autoplay loop style="width:100%"></video>` : '<div style="padding:40px;text-align:center">视频 URL 未返回</div>'}
+      <div class="meta">${url ? `<a href="${url}" target="_blank">下载视频 →</a>` : ''}<span style="float:right">${data.seconds || '?'}秒 | ${data.size || '?'}</span></div>
+    </div>`;
+  document.getElementById('generateVideoBtn').disabled = false;
+  document.getElementById('generateVideoBtn').textContent = '生成视频';
+  addHistory('video', lastVideoPrompt, data);
+}
+
+function showError(msg) {
+  const area = document.getElementById('resultContent');
+  area.style.display = 'block';
+  area.innerHTML = `<div class="result-card" style="text-align:center;padding:40px"><div style="font-size:40px;margin-bottom:12px">⚠️</div><div style="color:#ef4444;font-weight:600;margin-bottom:8px">生成失败</div><div style="color:var(--text-dim);font-size:14px">${msg}</div></div>`;
+  document.getElementById('placeholder').style.display = 'none';
+}
+
+function showPlaceholder() {
+  document.getElementById('resultContent').style.display = 'none';
+  document.getElementById('placeholder').style.display = '';
+  if (pollingTimer) { clearTimeout(pollingTimer); pollingTimer = null; }
+}
+
+// ---- History with local saving ----
+let historyOpen = false;
+let settingsOpen = false;
+
+function toggleHistory() {
+  historyOpen = !historyOpen;
+  const body = document.getElementById('historyBody');
+  const arrow = document.getElementById('historyArrow');
+  body.classList.toggle('open', historyOpen);
+  arrow.classList.toggle('collapsed', !historyOpen);
+}
+
+function toggleSettings() {
+  settingsOpen = !settingsOpen;
+  document.getElementById('settingsDropdown').classList.toggle('open', settingsOpen);
+}
+document.addEventListener('click', () => {
+  if (settingsOpen) {
+    settingsOpen = false;
+    document.getElementById('settingsDropdown').classList.remove('open');
+  }
+});
+
+async function saveFileLocally(url) {
+  try {
+    const res = await fetch('/api/save-file', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url })
+    });
+    const data = await res.json();
+    return data.localUrl || '';
+  } catch (e) {
+    return '';
+  }
+}
+
+async function addHistory(type, prompt, data) {
+  // Get remote URLs from response
+  const urls = [];
+  if (type === 'image' && data.data) {
+    data.data.forEach(d => { if (d.url) urls.push(d.url); });
+  }
+  if (type === 'video') {
+    const vu = data.remixed_from_video_id || data.video_url || '';
+    if (vu) urls.push(vu);
+  }
+
+  // Save first URL locally for thumbnail
+  let localUrl = '';
+  if (urls.length > 0) {
+    localUrl = await saveFileLocally(urls[0]);
+  }
+
+  const item = {
+    type,
+    prompt: prompt?.slice(0, 80) || '',
+    thumb: localUrl || urls[0] || '',   // prefer local, fallback to remote
+    allUrls: urls,
+    localUrls: localUrl ? [localUrl] : [],
+    timestamp: Date.now()
+  };
+  history.unshift(item);
+  if (history.length > 50) history.pop();
+  localStorage.setItem('agnes_history', JSON.stringify(history));
+  renderHistory();
+}
+
+function renderHistory() {
+  const list = document.getElementById('historyList');
+  const section = document.getElementById('historySection');
+  const countEl = document.getElementById('historyCount');
+  if (!history.length) { section.style.display = 'none'; return; }
+  section.style.display = '';
+  countEl.textContent = `(${history.length})`;
+  list.innerHTML = history.map((item, i) => {
+    const icon = item.type === 'image' ? '🖼' : '🎬';
+    const thumbSrc = item.thumb;
+    const thumbTag = thumbSrc
+      ? (item.type === 'image'
+          ? `<img class="thumb" src="${thumbSrc}" loading="lazy" data-fallback="${icon}">`
+          : `<video class="thumb" src="${thumbSrc}" muted preload="metadata" data-fallback="${icon}"></video>`)
+      : `<div class="thumb" style="display:flex;align-items:center;justify-content:center;font-size:20px;background:var(--surface2)">${icon}</div>`;
+    return `<div class="history-item" onclick="showHistoryItem(${i})">
+      ${thumbTag}
+      <div class="info"><div class="title">${escHtml(item.prompt || '无提示词')}</div><div class="sub">${new Date(item.timestamp).toLocaleString()}</div></div>
+      <span class="type-badge ${item.type}">${item.type === 'image' ? '图片' : '视频'}</span>
+    </div>`;
+  }).join('');
+
+  list.querySelectorAll('.history-item img, .history-item video').forEach(el => {
+    el.onerror = function() {
+      const icon = this.dataset.fallback || '🖼';
+      this.outerHTML = `<div class="thumb" style="display:flex;align-items:center;justify-content:center;font-size:20px;background:var(--surface2)">${icon}</div>`;
+    };
+  });
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+function showHistoryItem(i) {
+  const item = history[i];
+  const area = document.getElementById('resultContent');
+  area.style.display = 'block';
+  document.getElementById('placeholder').style.display = 'none';
+
+  if (item.type === 'image') {
+    const urls = item.localUrls.length > 0 ? item.localUrls : item.allUrls;
+    if (urls.length === 0) {
+      area.innerHTML = `<div class="result-card" style="text-align:center;padding:40px;color:var(--text-dim)">图片地址已失效</div>`;
+      return;
+    }
+    area.innerHTML = `<div class="image-grid">${urls.map(url => `
+      <div class="result-card">
+        <a href="${url}" target="_blank"><img src="${url}" loading="lazy" alt="generated"></a>
+        <div class="meta">
+          <a href="${url}" target="_blank">打开原图 →</a>
+          <span style="float:right;font-size:11px;color:var(--text-dim)">${url.startsWith('/static/') ? '本地文件' : '外部链接'}</span>
+        </div>
+      </div>`).join('')}</div>`;
+  } else {
+    const url = item.localUrls[0] || item.thumb || '';
+    if (!url) {
+      area.innerHTML = `<div class="result-card" style="text-align:center;padding:40px;color:var(--text-dim)">视频地址已失效</div>`;
+      return;
+    }
+    area.innerHTML = `
+      <div class="result-card">
+        ${url ? `<video src="${url}" controls autoplay loop style="width:100%"></video>` : '<div style="padding:40px;text-align:center">无视频文件</div>'}
+        <div class="meta">
+          ${url ? `<a href="${url}" target="_blank">下载视频 →</a>` : ''}
+          <span style="float:right;font-size:11px;color:var(--text-dim)">${url.startsWith('/static/') ? '本地文件' : '外部链接'}</span>
+        </div>
+      </div>`;
+  }
+}
+
+function showHistoryStats() {
+  closeSettings();
+  const totalItems = history.length;
+  const localCount = history.filter(h => h.localUrls?.length > 0 || h.thumb?.startsWith('/static/')).length;
+  const msg = `共有 ${totalItems} 条历史记录\n其中 ${localCount} 条包含本地文件`;
+  alert(msg);
+}
+
+function closeSettings() {
+  settingsOpen = false;
+  document.getElementById('settingsDropdown').classList.remove('open');
+}
+
+async function confirmClear() {
+  closeSettings();
+  if (!confirm('确定清除所有历史记录吗？\n本地保存的图片/视频文件也会被删除。')) return;
+
+  // Clear local files via API
+  try {
+    await fetch('/api/clear-files', { method: 'POST' });
+  } catch (e) { /* ignore */ }
+
+  // Clear history
+  history.length = 0;
+  localStorage.removeItem('agnes_history');
+  renderHistory();
+
+  // Show placeholder if result area was showing history item
+  showPlaceholder();
+}
+
+renderHistory();
+</script>
+
+</body>
+</html>
