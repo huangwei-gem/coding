@@ -559,29 +559,61 @@ document.getElementById('imageForm').addEventListener('submit', async (e) => {
   const btn = document.getElementById('generateImageBtn');
   const isUpload = e.target.querySelector('input[type="file"]')?.files?.length > 0;
 
+  const req = buildRequest(e.target, 'image');
+  const n = req.type === 'json' ? (req.data.n || 1) : 1;
+
   btn.disabled = true; btn.textContent = isUpload ? '正在上传图片...' : '正在生成图片...';
   let startTime = Date.now();
   let statusTimer = setInterval(() => {
     const elapsed = Math.floor((Date.now() - startTime) / 1000);
     if (elapsed < 5 && isUpload) btn.textContent = '正在上传图片...';
     else btn.textContent = `正在生成图片... (${elapsed}s)`;
+    // Show progress for parallel requests
+    if (n > 1 && !isUpload) {
+      const done = completedRequests || 0;
+      btn.textContent = `正在生成图片... ${done}/${n} (${elapsed}s)`;
+    }
   }, 1000);
 
-  const req = buildRequest(e.target, 'image');
-  const opts = req.type === 'multipart'
-    ? { method: 'POST', body: req.data }
-    : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req.data) };
+  let completedRequests = 0;
 
   try {
-    const ctrl = new AbortController();
-    const timeoutId = setTimeout(() => ctrl.abort(), 300000); // 5min timeout
-    opts.signal = ctrl.signal;
-    const res = await apiFetch(API_BASE + req.endpoint, opts);
-    clearTimeout(timeoutId);
-    const data = await res.json();
-    if (data.error) throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error));
-    showImageResult(data, req.type === 'json' ? req.data : { prompt: '图片生成' });
-    addHistory('image', req.type === 'json' ? (req.data.prompt || '') : '本地上传', data);
+    let allData;
+    if (n > 1 && req.type === 'json') {
+      // Parallel: send n concurrent requests, each with n=1
+      const promises = [];
+      for (let i = 0; i < n; i++) {
+        const body = { ...req.data, n: 1 };
+        promises.push(
+          apiFetch(API_BASE + req.endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(body)
+          }).then(async res => {
+            const d = await res.json();
+            completedRequests++;
+            return d;
+          })
+        );
+      }
+      const results = await Promise.all(promises);
+      const errors = results.filter(r => r.error);
+      if (errors.length > 0) throw new Error(errors[0].error);
+      allData = { data: results.flatMap(r => r.data || []) };
+    } else {
+      // Single request (upload or n=1)
+      const ctrl = new AbortController();
+      const timeoutId = setTimeout(() => ctrl.abort(), 300000);
+      const opts = req.type === 'multipart'
+        ? { method: 'POST', body: req.data, signal: ctrl.signal }
+        : { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(req.data), signal: ctrl.signal };
+      const res = await apiFetch(API_BASE + req.endpoint, opts);
+      clearTimeout(timeoutId);
+      allData = await res.json();
+      if (allData.error) throw new Error(typeof allData.error === 'string' ? allData.error : JSON.stringify(allData.error));
+    }
+    showImageResult(allData, req.type === 'json' ? req.data : { prompt: '图片生成' });
+    addHistory('image', req.type === 'json' ? (req.data.prompt || '') : '本地上传', allData);
   } catch (err) {
     if (err.name === 'AbortError') showError('请求超时，请稍后重试');
     else showError(err.message);
@@ -620,6 +652,9 @@ document.getElementById('videoForm').addEventListener('submit', async (e) => {
     const data = await res.json();
     if (data.error) throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error));
     const taskId = data.task_id || data.id;
+    // Clear submission timer and re-enable button — progress shows in result area
+    clearInterval(statusTimer);
+    btn.disabled = false; btn.textContent = '生成视频';
     showVideoProgress(taskId, data);
   } catch (err) {
     if (err.name === 'AbortError') showError('请求超时，请稍后重试');
@@ -631,7 +666,7 @@ document.getElementById('videoForm').addEventListener('submit', async (e) => {
 
 // ---- Video polling ----
 function showVideoProgress(taskId, params) {
-  // Clear any existing polling
+  // Clear any existing polling and button timers
   if (pollingTimer) { clearTimeout(pollingTimer); pollingTimer = null; }
   const area = document.getElementById('resultContent');
   area.style.display = 'block';
@@ -639,6 +674,7 @@ function showVideoProgress(taskId, params) {
     <div class="result-card" style="text-align:center;padding:40px">
       <div class="spinner"></div>
       <div style="font-size:16px;font-weight:600;margin:12px 0">视频生成中...</div>
+      <div style="font-size:13px;color:var(--text-dim);margin-bottom:8px" id="progressElapsed">已等待 0s</div>
       <div class="progress-bar"><div class="progress-fill" id="progressFill" style="width:0%"></div></div>
       <div class="progress-text" id="progressText">排队中...</div>
       <div style="font-size:12px;color:var(--text-dim);margin-top:8px">任务ID: ${taskId}</div>
@@ -646,6 +682,19 @@ function showVideoProgress(taskId, params) {
   `;
   document.getElementById('placeholder').style.display = 'none';
   pollVideo(taskId);
+
+  // Update elapsed time every second
+  const progressStart = Date.now();
+  if (window._progressTimer) clearInterval(window._progressTimer);
+  window._progressTimer = setInterval(() => {
+    const el = document.getElementById('progressElapsed');
+    if (el) {
+      const secs = Math.floor((Date.now() - progressStart) / 1000);
+      const m = Math.floor(secs / 60);
+      const s = secs % 60;
+      el.textContent = m > 0 ? `已等待 ${m}分${s}秒` : `已等待 ${s}s`;
+    }
+  }, 1000);
 }
 
 async function pollVideo(taskId) {
@@ -676,6 +725,7 @@ async function pollVideo(taskId) {
         text.style.color = '#f59e0b';
         pollingTimer = setTimeout(fn, 5000);
       } else {
+        if (window._progressTimer) { clearInterval(window._progressTimer); window._progressTimer = null; }
         const area = document.getElementById('resultContent');
         area.innerHTML = `
           <div class="result-card" style="text-align:center;padding:40px">
@@ -696,8 +746,11 @@ function showImageResult(data, params) {
   const urls = data.data ? data.data.map(d => d.url).filter(Boolean) : [];
   area.innerHTML = `<div class="image-grid">${urls.map(url => `
     <div class="result-card">
-      <a href="${url}" target="_blank"><img src="${url}" loading="lazy" alt="generated"></a>
-      <div class="meta"><a href="${url}" target="_blank">打开原图 →</a></div>
+      <a href="${url}" target="_blank"><img src="${url}" loading="lazy" alt="generated" style="cursor:zoom-in"></a>
+      <div class="meta">
+        <a href="${url}" target="_blank">打开原图 →</a>
+        <span style="float:right;font-size:11px;color:var(--text-dim)">${url.startsWith('/static/') ? '本地文件' : '外部链接'}</span>
+      </div>
     </div>`).join('')}</div>`;
   document.getElementById('placeholder').style.display = 'none';
 }
@@ -714,6 +767,7 @@ async function showVideoResult(data, taskId) {
   }
 
   const playUrl = localUrl || remoteUrl;
+  if (window._progressTimer) { clearInterval(window._progressTimer); window._progressTimer = null; }
   area.innerHTML = `
     <div class="result-card">
       ${playUrl ? `<video src="${playUrl}" controls autoplay muted loop playsinline style="width:100%"></video>` : '<div style="padding:40px;text-align:center">视频 URL 未返回</div>'}
@@ -727,6 +781,7 @@ async function showVideoResult(data, taskId) {
 function showError(msg) {
   const area = document.getElementById('resultContent');
   area.style.display = 'block';
+  if (window._progressTimer) { clearInterval(window._progressTimer); window._progressTimer = null; }
   area.innerHTML = `<div class="result-card" style="text-align:center;padding:40px"><div style="font-size:40px;margin-bottom:12px">⚠️</div><div style="color:#ef4444;font-weight:600;margin-bottom:8px">生成失败</div><div style="color:var(--text-dim);font-size:14px">${msg}</div></div>`;
   document.getElementById('placeholder').style.display = 'none';
 }
@@ -735,6 +790,7 @@ function showPlaceholder() {
   document.getElementById('resultContent').style.display = 'none';
   document.getElementById('placeholder').style.display = '';
   if (pollingTimer) { clearTimeout(pollingTimer); pollingTimer = null; }
+  if (window._progressTimer) { clearInterval(window._progressTimer); window._progressTimer = null; }
 }
 
 // ---- History with local saving ----
@@ -823,7 +879,7 @@ function renderHistory() {
           ? `<img class="thumb" src="${thumbSrc}" loading="lazy" style="position:relative;z-index:1;background:var(--surface2)" onerror="this.style.display='none'">`
           : `<video class="thumb" src="${thumbSrc}" muted preload="metadata" style="position:relative;z-index:1;background:var(--surface2)" onerror="this.style.display='none'"></video>`)
       : '';
-    return `<div class="history-item" onclick="showHistoryItem(${i})">
+    return `<div class="history-item" onclick="showHistoryItem(${i})" ondblclick="openHistoryItem(${i})">
       <div style="position:relative;width:48px;height:48px;flex-shrink:0;border-radius:6px;overflow:hidden">${bgIcon}${content}</div>
       <div class="info"><div class="title">${escHtml(item.prompt || '无提示词')}</div><div class="sub">${new Date(item.timestamp).toLocaleString()}</div></div>
       <span class="type-badge ${item.type}">${item.type === 'image' ? '图片' : '视频'}</span>
@@ -844,21 +900,29 @@ function showHistoryItem(i) {
   document.getElementById('placeholder').style.display = 'none';
 
   if (item.type === 'image') {
-    const urls = item.localUrls.length > 0 ? item.localUrls : item.allUrls;
+    const urls = (item.localUrls || item.allUrls || []);
+    if (urls.length === 0 && item.thumb) {
+      // Old history entry with only a thumbnail
+      area.innerHTML = `<div class="image-grid"><div class="result-card">
+        <a href="${item.thumb}" target="_blank"><img src="${item.thumb}" loading="lazy" alt="generated" style="cursor:zoom-in"></a>
+        <div class="meta"><a href="${item.thumb}" target="_blank">打开原图 →</a></div>
+      </div></div>`;
+      return;
+    }
     if (urls.length === 0) {
       area.innerHTML = `<div class="result-card" style="text-align:center;padding:40px;color:var(--text-dim)">图片地址已失效</div>`;
       return;
     }
     area.innerHTML = `<div class="image-grid">${urls.map(url => `
       <div class="result-card">
-        <a href="${url}" target="_blank"><img src="${url}" loading="lazy" alt="generated"></a>
+        <a href="${url}" target="_blank"><img src="${url}" loading="lazy" alt="generated" style="cursor:zoom-in"></a>
         <div class="meta">
           <a href="${url}" target="_blank">打开原图 →</a>
           <span style="float:right;font-size:11px;color:var(--text-dim)">${url.startsWith('/static/') ? '本地文件' : '外部链接'}</span>
         </div>
       </div>`).join('')}</div>`;
   } else {
-    const url = item.localUrls[0] || item.thumb || '';
+    const url = (item.localUrls && item.localUrls[0]) || item.thumb || '';
     if (!url) {
       area.innerHTML = `<div class="result-card" style="text-align:center;padding:40px;color:var(--text-dim)">视频地址已失效</div>`;
       return;
@@ -871,6 +935,19 @@ function showHistoryItem(i) {
           <span style="float:right;font-size:11px;color:var(--text-dim)">${url.startsWith('/static/') ? '本地文件' : '外部链接'}</span>
         </div>
       </div>`;
+  }
+}
+
+function openHistoryItem(i) {
+  const item = history[i];
+  if (!item) return;
+  if (item.type === 'image') {
+    const urls = (item.localUrls || item.allUrls || []);
+    const target = urls[0] || item.thumb || '';
+    if (target) window.open(target, '_blank');
+  } else {
+    const url = (item.localUrls && item.localUrls[0]) || item.thumb || '';
+    if (url) window.open(url, '_blank');
   }
 }
 

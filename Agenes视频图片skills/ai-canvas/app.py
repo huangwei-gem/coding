@@ -235,7 +235,7 @@ def create_video():
     if negative_prompt:
         body["negative_prompt"] = negative_prompt
 
-    result, status = curl_post(f"{BASE_URL}/videos", body, timeout=120)
+    result, status = curl_post(f"{BASE_URL}/videos", body, timeout=300)
     return flask.jsonify(result), status
 
 
@@ -283,7 +283,7 @@ def handle_video_upload():
         else:
             return {"error": "图片转换失败，无法读取文件内容。请尝试使用 URL 模式输入图片链接。"}, 400
 
-    result, status = curl_post(f"{BASE_URL}/videos", body, timeout=120)
+    result, status = curl_post(f"{BASE_URL}/videos", body, timeout=300)
     return flask.jsonify(result), status
 
 
