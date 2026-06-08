@@ -149,18 +149,23 @@ def main():
 
     # ── 3. 检查 API Key ──
     print_step(3, "Check API key")
+    # 尝试从 .env 文件读取
+    dotenv_path = os.path.join(PROJECT_DIR, ".env")
+    if os.path.isfile(dotenv_path):
+        with open(dotenv_path, "r", encoding="utf-8") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("AGNES_API_KEY="):
+                    val = line.split("=", 1)[1].strip().strip("\"'")
+                    if val and not os.environ.get("AGNES_API_KEY", ""):
+                        os.environ["AGNES_API_KEY"] = val
+                    break
+
     api_key = os.environ.get("AGNES_API_KEY", "")
-    if not api_key:
-        print_info("AGNES_API_KEY not set")
-        key = input("\nEnter your Agnes API Key (or press Enter to skip): ").strip()
-        if key:
-            os.environ["AGNES_API_KEY"] = key
-            api_key = key
-            print_ok("API Key set (session only)")
-        else:
-            print_info("Skip -- API calls will fail")
-    else:
+    if api_key:
         print_ok("AGNES_API_KEY is set")
+    else:
+        print_info("AGNES_API_KEY not set -- API calls will fail. Set it in .env file or system environment.")
 
     # ── 4. 启动 Web 服务 ──
     print_step(4, "Start server")

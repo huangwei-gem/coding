@@ -5,6 +5,86 @@
 
 ---
 
+## START 项目亮点（面试版）
+
+### Situation
+小区居委会乱收费、不作为。业主需依法收集 **80% 以上业主书面同意**才能起诉换届。传统线下签字效率极低，500户需 2-3 周，且常因证据链不完整被法院驳回。
+
+### Task
+**10 天内**完成全小区业主意愿取证 —— 自动发短信、收回复、判意愿、出证据，避免人工操作被运营商风控拦截，确保每条回复附带时间戳形成有效法律证据。
+
+### Action
+用 Python 搭建 **6 阶段全自动流水线**：
+1. **Excel 数据清洗** — 自动识别中文列名、填充合并单元格、清洗手机号、去重
+2. **批量短信分发** — 填充业主姓名/房号到模板，对接阿里云 API，失败自动重试，限速防封
+3. **回复定时采集** — APScheduler 每 10 分钟轮询，自动去重，实时回调处理
+4. **双层风控过滤** — 违禁词精确拦截 + AI 情绪检测（关键词+LLM），触发后自动回复安抚话术
+5. **意愿语义分析** — 20+ 正则规则引擎优先判断，模糊文本走 LLM（OpenAI 兼容），置信度 <95% 自动导出人工复核
+6. **证据固化与报告** — 每条回复打时间戳存档，自动生成 HTML 报告 + 饼图 + 进度条 + JSON 汇总
+
+**技术栈**：Python, pandas/openpyxl, 阿里云短信 API, OpenAI 兼容 LLM, MySQL, APScheduler, matplotlib, loguru
+
+### Result
+- **一键运行**全流程，Demo 模式零配置即可体验，生产模式对接真实 API
+- **同意率实时统计**，达标即止；人工复核兜底保证 **准确率 ≥ 95%**
+- 模块化设计，**6 阶段可独立执行**（`--step clean|send|collect|analyze|report`）
+- 时间戳证据固化，满足法定证据链要求
+
+## 系统架构图
+
+```mermaid
+flowchart TB
+    subgraph Input["📥 数据输入层"]
+        A1["原始 Excel<br/>(业主名单)"] --> A2["configs/<br/>违禁词库"]
+    end
+
+    subgraph Pipeline["⚙️ 核心处理管道"]
+        direction TB
+        B1["DataCleaner<br/>数据清洗<br/>(pandas + openpyxl)"] --> B2["SmsSender<br/>短信分发<br/>(批量 + 重试)"]
+        B2 --> B3["ReplyCollector<br/>回复采集<br/>(定时轮询 + 去重)"]
+        B3 --> B4["ContentFilter<br/>双层风控<br/>(违禁词 + AI 情绪)"]
+        B4 --> B5["IntentionAnalyzer<br/>意愿分析<br/>(规则 + LLM + 人工)"]
+        B5 --> B6["EvidenceManager<br/>证据管理<br/>(存档 + 报告)"]
+    end
+
+    subgraph External["🌐 外部服务"]
+        C1["短信 API<br/>(阿里云等)"]
+        C2["LLM API<br/>(OpenAI 兼容)"]
+    end
+
+    subgraph Storage["💾 数据存储层"]
+        D1["MySQL<br/>(生产模式)"]
+        D2["内存存储<br/>(Demo 模式)"]
+        D3["文件系统<br/>(data/output/)"]
+    end
+
+    subgraph Output["📊 输出层"]
+        E1["cleaned/<br/>标准化 CSV"]
+        E2["evidence/<br/>时间戳证据"]
+        E3["reports/<br/>HTML 统计报告"]
+        E4["reports/<br/>可视化图表"]
+        E5["reports/<br/>人工复核列表"]
+    end
+
+    subgraph Support["🛠 基础设施"]
+        F1["config.py<br/>全局配置"]
+        F2["loguru<br/>日志系统"]
+        F3["APScheduler<br/>任务调度"]
+    end
+
+    B1 --> D1 & D2
+    B2 <--> C1
+    B3 --> D1 & D2
+    B4 <--> C2
+    B5 <--> C2
+    B5 --> D1 & D2
+    B6 --> D3
+    D3 --> E1 & E2 & E3 & E4 & E5
+    F1 -.-> Pipeline
+    F2 -.-> Pipeline
+    F3 -.-> B3
+```
+
 ## 项目背景
 
 为解决小区居委会乱收费、不作为问题，需收集**80%以上业主书面同意**的法定证据以起诉换届居委会。本系统通过 AI + 自动化替代人工发短信和统计，10天内高效完成业主意愿取证，规避人工繁琐、出错和风控问题。
