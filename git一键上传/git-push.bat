@@ -6,7 +6,7 @@ echo =================================
 echo    One-Click GitHub Upload
 echo =================================
 
-cd /d "C:\Users\35796\Documents\coding项目"
+pushd "%~dp0.."
 
 echo.
 echo [1/4] Checking repository status...
@@ -28,7 +28,8 @@ git push
 
 echo.
 echo =================================
-echo    Done! Successfully uploaded.
+echo    Done! Press any key to exit.
 echo =================================
 
 pause
+popd
