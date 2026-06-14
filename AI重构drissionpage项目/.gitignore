@@ -1,0 +1,14 @@
+# Cookie 文件
+cookies/
+*.log
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.venv/
+
+# IDE
+.vscode/
+.idea/

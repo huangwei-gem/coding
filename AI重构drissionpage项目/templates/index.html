@@ -1,0 +1,717 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BOSS 直聘 - 自动化助手</title>
+<style>
+  :root {
+    --primary: #4f46e5;
+    --primary-hover: #4338ca;
+    --success: #22c55e;
+    --danger: #ef4444;
+    --warning: #f59e0b;
+    --bg: #f8fafc;
+    --card: #ffffff;
+    --border: #e2e8f0;
+    --text: #1e293b;
+    --text-secondary: #64748b;
+    --radius: 8px;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+  }
+  .header {
+    background: var(--card);
+    border-bottom: 1px solid var(--border);
+    padding: 16px 24px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  }
+  .header h1 {
+    font-size: 20px;
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .header h1 small {
+    font-size: 13px;
+    font-weight: 400;
+    color: var(--text-secondary);
+    margin-left: 4px;
+  }
+  .status-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 6px 14px;
+    border-radius: 20px;
+    font-size: 13px;
+    font-weight: 500;
+  }
+  .status-badge .dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    display: inline-block;
+  }
+  .status-badge.online { background: #dcfce7; color: #166534; }
+  .status-badge.online .dot { background: #22c55e; }
+  .status-badge.offline { background: #fef2f2; color: #991b1b; }
+  .status-badge.offline .dot { background: #ef4444; }
+  .status-badge.running { background: #fef3c7; color: #92400e; }
+  .status-badge.running .dot { background: #f59e0b; animation: pulse 1s infinite; }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.3; }
+  }
+
+  .container {
+    display: grid;
+    grid-template-columns: 380px 1fr;
+    gap: 0;
+    height: calc(100vh - 61px);
+  }
+  .sidebar {
+    background: var(--card);
+    border-right: 1px solid var(--border);
+    padding: 20px;
+    overflow-y: auto;
+  }
+  .main {
+    padding: 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .section { margin-bottom: 20px; }
+  .section-title {
+    font-size: 14px;
+    font-weight: 600;
+    margin-bottom: 10px;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .form-group { margin-bottom: 14px; }
+  .form-group label {
+    display: block;
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 4px;
+    color: var(--text);
+  }
+  .form-group select, .form-group input, .form-group textarea {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    font-size: 14px;
+    background: #fff;
+    transition: border-color 0.2s;
+  }
+  .form-group select:focus, .form-group input:focus, .form-group textarea:focus {
+    outline: none;
+    border-color: var(--primary);
+    box-shadow: 0 0 0 3px rgba(79,70,229,0.1);
+  }
+  .form-group textarea {
+    resize: vertical;
+    min-height: 80px;
+    font-family: inherit;
+  }
+  .form-hint {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 2px;
+  }
+
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    background: #fff;
+    color: var(--text);
+  }
+  .btn:hover { background: #f1f5f9; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-primary { background: var(--primary); color: #fff; border-color: var(--primary); }
+  .btn-primary:hover { background: var(--primary-hover); }
+  .btn-success { background: var(--success); color: #fff; border-color: var(--success); }
+  .btn-success:hover { background: #16a34a; }
+  .btn-danger { background: var(--danger); color: #fff; border-color: var(--danger); }
+  .btn-danger:hover { background: #dc2626; }
+  .btn-warning { background: var(--warning); color: #fff; border-color: var(--warning); }
+  .btn-sm { padding: 4px 10px; font-size: 12px; }
+  .btn-block { width: 100%; justify-content: center; }
+  .btn-group { display: flex; gap: 8px; }
+
+  .log-window {
+    flex: 1;
+    background: #0f172a;
+    color: #e2e8f0;
+    border-radius: var(--radius);
+    padding: 12px;
+    font-family: "Cascadia Code", "Fira Code", monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+    min-height: 200px;
+    max-height: 100%;
+  }
+  .log-window .log-info { color: #e2e8f0; }
+  .log-window .log-success { color: #4ade80; }
+  .log-window .log-error { color: #f87171; }
+  .log-window .log-warning { color: #fbbf24; }
+  .log-window .log-muted { color: #64748b; }
+  .log-placeholder {
+    color: #64748b;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    font-size: 14px;
+  }
+
+  .result-summary {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .stat-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 12px;
+    text-align: center;
+  }
+  .stat-card .num {
+    font-size: 24px;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+  .stat-card .label {
+    font-size: 12px;
+    color: var(--text-secondary);
+  }
+  .stat-card.total .num { color: var(--primary); }
+  .stat-card.sent .num { color: var(--success); }
+  .stat-card.skipped .num { color: var(--warning); }
+  .stat-card.errors .num { color: var(--danger); }
+
+  .login-panel {
+    background: #fef3c7;
+    border: 1px solid #fbbf24;
+    border-radius: var(--radius);
+    padding: 12px 16px;
+    margin-bottom: 14px;
+    display: none;
+  }
+  .login-panel.active { display: block; }
+  .login-panel p {
+    font-size: 13px;
+    margin-bottom: 8px;
+  }
+
+  .checkbox-group {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+  .checkbox-group label {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 13px;
+    cursor: pointer;
+  }
+
+  .loading {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: spin 0.6s linear infinite;
+  }
+  .loading.dark { border-color: rgba(0,0,0,0.1); border-top-color: var(--primary); }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .city-select-wrapper { position: relative; }
+  .city-loading {
+    position: absolute;
+    right: 10px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  @media (max-width: 768px) {
+    .container { grid-template-columns: 1fr; }
+    .sidebar { border-right: none; border-bottom: 1px solid var(--border); max-height: 50vh; }
+  }
+</style>
+</head>
+<body>
+<div class="header">
+  <h1>
+    BOSS 直聘 自动化助手
+    <small>v2.0</small>
+  </h1>
+  <div>
+    <span id="statusBadge" class="status-badge offline">
+      <span class="dot"></span>
+      <span id="statusText">未知</span>
+    </span>
+  </div>
+</div>
+
+<div class="container">
+  <div class="sidebar">
+    <!-- 登录面板 -->
+    <div id="loginPanel" class="login-panel">
+      <p>需要登录 BOSS 直聘，请在打开的浏览器页面中完成登录。</p>
+      <div class="btn-group">
+        <button id="checkLoginBtn" class="btn btn-sm btn-primary">检查登录状态</button>
+        <button id="logoutBtn" class="btn btn-sm btn-danger">清除 Cookie</button>
+      </div>
+    </div>
+
+    <!-- 结果统计 -->
+    <div id="resultSummary" class="result-summary" style="display:none">
+      <div class="stat-card total">
+        <div class="num" id="statTotal">0</div>
+        <div class="label">岗位总数</div>
+      </div>
+      <div class="stat-card sent">
+        <div class="num" id="statSent">0</div>
+        <div class="label">已沟通</div>
+      </div>
+      <div class="stat-card skipped">
+        <div class="num" id="statSkipped">0</div>
+        <div class="label">已跳过</div>
+      </div>
+      <div class="stat-card errors">
+        <div class="num" id="statErrors">0</div>
+        <div class="label">失败</div>
+      </div>
+    </div>
+
+    <!-- 配置 -->
+    <div class="section">
+      <div class="section-title">搜索配置</div>
+      <div class="form-group">
+        <label for="citySelect">目标城市</label>
+        <div class="city-select-wrapper">
+          <select id="citySelect">
+            <option value="">-- 请先连接浏览器 --</option>
+          </select>
+          <span id="cityLoading" class="city-loading loading dark" style="display:none"></span>
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="jobInput">岗位名称（每行一个，依次搜索）</label>
+        <textarea id="jobInput" rows="3">数据分析实习
+数据运营实习
+商业分析实习</textarea>
+      </div>
+      <div class="form-group">
+        <label for="scrollTimes">滚动加载次数</label>
+        <input id="scrollTimes" type="number" value="5" min="1" max="20">
+      </div>
+      <div class="form-group">
+        <label for="maxJobs">最大沟通数</label>
+        <input id="maxJobs" type="number" value="0" min="0" max="200" placeholder="0 = 不限">
+        <div class="form-hint">0 表示不限，处理所有加载到的岗位</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="section-title">沟通配置</div>
+      <div class="form-group">
+        <label for="messageInput">打招呼消息</label>
+        <textarea id="messageInput">您好，我是双一流的本科，应聘数据分析岗位。在校系统学习数据分析相关知识，掌握Excel、基础SQL与数据整理技能，具备数据思维。做事严谨细心，学习能力强，愿意踏实积累。十分认可贵公司，希望能获得面试机会。</textarea>
+      </div>
+      <div class="form-group">
+        <label>
+          <input type="checkbox" id="sendImagesCheckbox" checked>
+          发送看板图片
+        </label>
+        <div class="form-hint">将发送 {{ dashboard_dir }} 下的所有 PNG/JPG 图片</div>
+      </div>
+    </div>
+
+    <div class="section">
+      <div class="btn-group" style="flex-direction:column">
+        <button id="connectBtn" class="btn btn-primary btn-block">
+          <span id="connectText">启动浏览器</span>
+          <span id="connectLoading" class="loading" style="display:none"></span>
+        </button>
+        <button id="startBtn" class="btn btn-success btn-block" disabled>
+          <span id="startText">开始自动化</span>
+          <span id="startLoading" class="loading" style="display:none"></span>
+        </button>
+        <button id="stopBtn" class="btn btn-danger btn-block" disabled>
+          停止
+        </button>
+        <button id="restartBtn" class="btn btn-warning btn-block">
+          重启
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="section" style="margin-bottom:10px;display:flex;justify-content:space-between;align-items:center;">
+      <div class="section-title" style="margin-bottom:0">运行日志</div>
+      <button id="clearLogBtn" class="btn btn-sm">清除</button>
+    </div>
+    <div id="logWindow" class="log-window">
+      <div class="log-placeholder">等待操作...</div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== 状态 =====
+let browserConnected = false;
+let automationRunning = false;
+let logPollTimer = null;
+let statusPollTimer = null;
+let _cookieHintShown = false;
+
+// ===== DOM 引用 =====
+const $ = id => document.getElementById(id);
+const statusBadge = $('statusBadge');
+const statusText = $('statusText');
+const logWindow = $('logWindow');
+const loginPanel = $('loginPanel');
+const citySelect = $('citySelect');
+const resultSummary = $('resultSummary');
+
+// ===== 日志 =====
+function timestamp() {
+  var d = new Date();
+  var pad = function(n) { return String(n).padStart(2, '0'); };
+  return '[' + pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()) + ']';
+}
+
+function appendLog(msg, type) {
+  const placeholder = logWindow.querySelector('.log-placeholder');
+  if (placeholder) placeholder.remove();
+  const div = document.createElement('div');
+  div.className = 'log-' + (type || 'info');
+  if (!msg.startsWith('[')) {
+    div.textContent = timestamp() + ' ' + msg;
+  } else {
+    div.textContent = msg;
+  }
+  logWindow.appendChild(div);
+  logWindow.scrollTop = logWindow.scrollHeight;
+}
+
+function pollLogs() {
+  fetch('/api/logs')
+    .then(r => r.json())
+    .then(data => {
+      const lines = data.logs || [];
+      // 文件被清空时复位索引
+      if ((window._logIdx || 0) > lines.length) window._logIdx = 0;
+      for (let i = window._logIdx || 0; i < lines.length; i++) {
+        const line = lines[i];
+        if (!line.trim()) continue;
+        let type = 'info';
+        if (line.includes('出错') || line.includes('失败') || line.includes('异常')) type = 'error';
+        else if (line.includes('成功') || line.includes('完成') || line.includes('已发送') || line.includes('✅')) type = 'success';
+        else if (line.includes('跳过') || line.includes('警告') || line.includes('等待') || line.includes('⚠')) type = 'warning';
+        else if (line.includes('=') || line.includes('─')) type = 'muted';
+        appendLog(line, type);
+
+        // 实时提取统计数据
+        var m;
+        if ((m = line.match(/成功沟通:\s*(\d+)/))) { resultSummary.style.display = 'grid'; $('statSent').textContent = m[1]; }
+        if ((m = line.match(/已跳过:\s*(\d+)/))) { resultSummary.style.display = 'grid'; $('statSkipped').textContent = m[1]; }
+        if ((m = line.match(/失败:\s*(\d+)/))) { resultSummary.style.display = 'grid'; $('statErrors').textContent = m[1]; }
+        if ((m = line.match(/总计处理:\s*(\d+)/))) { resultSummary.style.display = 'grid'; $('statTotal').textContent = m[1]; }
+      }
+      window._logIdx = lines.length;
+    })
+    .catch(function() {});
+}
+
+function startLogPoll() {
+  stopLogPoll();
+  logPollTimer = setInterval(pollLogs, 1000);
+}
+
+function stopLogPoll() {
+  if (logPollTimer) { clearInterval(logPollTimer); logPollTimer = null; }
+}
+
+// ===== 状态轮询 =====
+function pollStatus() {
+  fetch('/api/status')
+    .then(r => r.json())
+    .then(data => {
+      browserConnected = data.browser_connected;
+      automationRunning = data.automation_running;
+
+      if (automationRunning) {
+        setStatus('running', '运行中');
+      } else if (data.logged_in) {
+        setStatus('online', '已登录 (' + data.cookie_count + ' Cookie)');
+      } else if (browserConnected) {
+        setStatus('offline', '未登录');
+      } else {
+        setStatus('offline', '未连接');
+      }
+
+      loginPanel.classList.toggle('active', browserConnected && !data.logged_in);
+
+      $('connectBtn').disabled = browserConnected;
+      $('connectText').textContent = browserConnected ? '浏览器已启动' : '启动浏览器';
+      $('startBtn').disabled = !browserConnected || !data.logged_in || automationRunning;
+      $('stopBtn').disabled = !automationRunning;
+
+      // 更新城市下拉（从 status 轮询获取，city_dict 已缓存）
+      if (data.cities && data.cities.length > 0 && citySelect.options.length <= 1) {
+        citySelect.innerHTML = '<option value="">-- 选择城市 --</option>';
+        for (const c of data.cities) {
+          const opt = document.createElement('option');
+          opt.value = c.code;
+          opt.textContent = c.name;
+          if (c.name === '上海') opt.selected = true;
+          citySelect.appendChild(opt);
+        }
+        if (!automationRunning) appendLog('城市数据加载完成，共 ' + data.cities.length + ' 个热门城市可选', 'muted');
+      }
+
+      if (data.cookie_info && data.cookie_info.cookie_file_exists && !_cookieHintShown) {
+        _cookieHintShown = true;
+        if (!automationRunning) appendLog('Cookie 文件存在 (' + data.cookie_count + ' 条)', 'muted');
+      }
+    })
+    .catch(() => {});
+}
+
+function startStatusPoll() {
+  if (statusPollTimer) clearInterval(statusPollTimer);
+  statusPollTimer = setInterval(pollStatus, 2000);
+  pollStatus();
+}
+
+function stopStatusPoll() {
+  if (statusPollTimer) { clearInterval(statusPollTimer); statusPollTimer = null; }
+}
+
+function setStatus(state, text) {
+  statusBadge.className = 'status-badge ' + state;
+  statusText.textContent = text;
+}
+
+// ===== 城市列表 =====
+function loadCities() {
+  $('cityLoading').style.display = 'inline-block';
+  $('citySelect').disabled = true;
+  fetch('/api/cities', { method: 'POST' })
+    .then(r => r.json())
+    .then(data => {
+      if (data.success && data.cities.length) {
+        citySelect.innerHTML = '<option value="">-- 选择城市 --</option>';
+        for (const c of data.cities) {
+          const opt = document.createElement('option');
+          opt.value = c.code;
+          opt.textContent = c.name;
+          if (c.name === '上海') opt.selected = true;
+          citySelect.appendChild(opt);
+        }
+        appendLog('已加载 ' + data.cities.length + ' 个热门城市', 'muted');
+      }
+    })
+    .catch(() => {})
+    .finally(() => {
+      $('cityLoading').style.display = 'none';
+      $('citySelect').disabled = false;
+    });
+}
+
+// ===== 操作 =====
+$('connectBtn').addEventListener('click', async () => {
+  $('connectLoading').style.display = 'inline-block';
+  $('connectText').textContent = '启动中...';
+  appendLog('正在启动浏览器（ChromiumPage）...', 'info');
+  appendLog('目标: ' + window.location.origin + '，请稍候', 'muted');
+
+  try {
+    const resp = await fetch('/api/connect', { method: 'POST' });
+    const data = await resp.json();
+    if (data.success) {
+      appendLog('浏览器启动成功，页面已加载', 'success');
+      if (data.logged_in) {
+        appendLog('Cookie 自动恢复成功，已登录 (' + data.cookie_count + ' 条 Cookie)', 'success');
+      } else {
+        appendLog('未检测到登录状态，请在浏览器中完成登录操作', 'warning');
+        appendLog('登录完成后点击「检查登录状态」按钮', 'muted');
+      }
+      pollStatus();
+    } else {
+      appendLog('浏览器启动失败: ' + data.error, 'error');
+    }
+  } catch (e) {
+    appendLog('请求失败: ' + e.message, 'error');
+  } finally {
+    $('connectLoading').style.display = 'none';
+    $('connectText').textContent = '浏览器已启动';
+  }
+});
+
+$('checkLoginBtn').addEventListener('click', async () => {
+  $('checkLoginBtn').disabled = true;
+  $('checkLoginBtn').textContent = '检查中...';
+  appendLog('正在检查登录状态并保存 Cookie...', 'info');
+  try {
+    const resp = await fetch('/api/check-login', { method: 'POST' });
+    const data = await resp.json();
+    if (data.logged_in) {
+      appendLog('登录验证通过！Cookie 已持久化保存', 'success');
+      appendLog('正在刷新页面获取城市数据...', 'info');
+      pollStatus();
+    } else {
+      appendLog('登录状态检测失败，请确认是否已扫码/账号登录完成', 'warning');
+    }
+  } catch (e) {
+    appendLog('检查登录状态请求失败: ' + e.message, 'error');
+  } finally {
+    $('checkLoginLoading').style.display = 'none';
+  }
+});
+
+$('logoutBtn').addEventListener('click', async () => {
+  if (!confirm('确定要清除 Cookie 并退出登录吗？')) return;
+  try {
+    await fetch('/api/logout', { method: 'POST' });
+    appendLog('已清除 Cookie 和登录状态', 'warning');
+    pollStatus();
+  } catch (e) {
+    appendLog('清除失败: ' + e.message, 'error');
+  }
+});
+
+$('startBtn').addEventListener('click', async () => {
+  const raw = $('jobInput').value;
+  const keywords = raw.split('\n').map(s => s.trim()).filter(s => s.length > 0);
+  const config = {
+    city: citySelect.options[citySelect.selectedIndex]?.text || '上海',
+    job_keywords: keywords,
+    message: $('messageInput').value,
+    scroll_times: parseInt($('scrollTimes').value) || 5,
+    max_jobs: parseInt($('maxJobs').value) || 0,
+    send_images: $('sendImagesCheckbox').checked,
+  };
+
+  if (!config.city || keywords.length === 0) {
+    appendLog('请选择城市并输入至少一个岗位名称', 'warning');
+    return;
+  }
+
+  appendLog('========================================', 'muted');
+  appendLog('自动化任务启动', 'info');
+  appendLog('目标城市: ' + config.city, 'info');
+  appendLog('搜索岗位 (' + keywords.length + ' 个): ' + keywords.join(' → '), 'info');
+  appendLog('滚动加载: ' + config.scroll_times + ' 次, 发送图片: ' + (config.send_images ? '是' : '否'), 'muted');
+  appendLog('========================================', 'muted');
+
+  $('startLoading').style.display = 'inline-block';
+  $('startText').textContent = '启动中...';
+
+  try {
+    const resp = await fetch('/api/start-automation', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config),
+    });
+    const data = await resp.json();
+    if (data.success) {
+      appendLog('自动化任务已启动', 'success');
+    } else {
+      appendLog('启动失败: ' + data.error, 'error');
+    }
+  } catch (e) {
+    appendLog('请求失败: ' + e.message, 'error');
+  } finally {
+    $('startLoading').style.display = 'none';
+    $('startText').textContent = '开始自动化';
+  }
+});
+
+$('stopBtn').addEventListener('click', async () => {
+  appendLog('正在发送停止信号...', 'warning');
+  try {
+    await fetch('/api/stop-automation', { method: 'POST' });
+    appendLog('自动化已停止，等待当前任务完成', 'warning');
+  } catch (e) {
+    appendLog('停止请求失败: ' + e.message, 'error');
+  }
+});
+
+$('restartBtn').addEventListener('click', async () => {
+  if (!confirm('确定要重启浏览器吗？将中断正在运行的任务。')) return;
+  appendLog('正在重启浏览器...', 'warning');
+  $('restartBtn').disabled = true;
+  $('restartBtn').textContent = '重启中...';
+
+  try {
+    const resp = await fetch('/api/restart', { method: 'POST' });
+    const data = await resp.json();
+    if (data.success) {
+      appendLog('浏览器重启成功', 'success');
+      if (data.logged_in) {
+        appendLog('Cookie 自动恢复，已登录 (' + data.cookie_count + ' 条 Cookie)', 'success');
+      } else {
+        appendLog('浏览器已启动，请完成登录', 'warning');
+      }
+      pollStatus();
+    } else {
+      appendLog('重启失败: ' + data.error, 'error');
+    }
+  } catch (e) {
+    appendLog('重启请求失败: ' + e.message, 'error');
+  } finally {
+    $('restartBtn').disabled = false;
+    $('restartBtn').textContent = '重启';
+  }
+});
+
+$('clearLogBtn').addEventListener('click', () => {
+  logWindow.innerHTML = '<div class="log-placeholder">日志已清除</div>';
+});
+
+// ===== 初始化 =====
+startStatusPoll();
+startLogPoll();
+
+window.addEventListener('beforeunload', () => {
+  stopLogPoll();
+  stopStatusPoll();
+});
+</script>
+</body>
+</html>

@@ -1,102 +1,233 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
-"""
-Boss 直聘 — 数据分析岗位自动搜索 & 投递工具
-========================================
-基于 DrissionPage 实现，支持浏览器自动化操作：
-  1. 检测/处理登录
-  2. 获取热门城市
-  3. 按岗位 & 城市搜索
-  4. 解析岗位列表 & 提取链接
-  5. 自动投递（文字 + 图片看板）
+"""BOSS 直聘自动化助手 - Web UI 入口"""
+import threading
+import time
+import json
+import atexit
+from pathlib import Path
 
-快速开始：
-  pip install -r requirements.txt
-  python main.py
-"""
-import sys
+from flask import Flask, render_template, jsonify, request
 
-from config.settings import BASE_URL, CITY_API_PATTERN, DEFAULT_CITY, DEFAULT_JOB
+from config import FLASK_HOST, FLASK_PORT, FLASK_DEBUG, DASHBOARD_DIR, LOG_FILE
 from core.browser import BrowserManager
-from core.exceptions import CityNotFound, ZhipinError
-from utils.logger import logger
+from core.automation import AutomationEngine
 
+# ------------------------------------------------------------
+# Flask app
+# ------------------------------------------------------------
+app = Flask(__name__)
 
-def main():
-    """主流程编排。"""
-    browser_mgr = BrowserManager()
+# ------------------------------------------------------------
+# Global state
+# ------------------------------------------------------------
+browser_mgr = BrowserManager()
+engine: AutomationEngine | None = None
+_engine_lock = threading.Lock()
+_automation_thread: threading.Thread | None = None
 
+# ------------------------------------------------------------
+# Helpers
+# ------------------------------------------------------------
+
+def _safe_read_logs() -> list[str]:
     try:
-        # ======== 1. 初始化浏览器 ========
-        page = browser_mgr.init_page()
+        if LOG_FILE.exists():
+            return LOG_FILE.read_text(encoding="utf-8").strip().split("\n")
+        return []
+    except Exception:
+        return []
 
-        # 提前监听城市数据包，避免 page.get() 时错过
-        page.listen.start(CITY_API_PATTERN)
+def _get_engine():
+    global engine
+    if engine is None and browser_mgr.page:
+        engine = AutomationEngine(browser_mgr.page)
+    return engine
 
-        page.get(BASE_URL)
+# ------------------------------------------------------------
+# Routes
+# ------------------------------------------------------------
 
-        # ======== 2. 处理登录 ========
-        from business.login import LoginHandler
+@app.route("/")
+def index():
+    return render_template("index.html", dashboard_dir=DASHBOARD_DIR)
 
-        login_handler = LoginHandler(page)
-        if not login_handler.login():
-            logger.error("登录失败，终止程序")
-            sys.exit(1)
+@app.route("/api/status")
+def api_status():
+    """获取浏览器/登录/自动化运行状态"""
+    info = browser_mgr.get_cookie_info() if browser_mgr.page else {}
 
-        # ======== 3. 获取城市 & 搜索岗位 ========
-        from business.city import CityFetcher
+    running = False
+    with _engine_lock:
+        if engine:
+            running = engine.is_running
 
-        city_fetcher = CityFetcher(page)
-        city_dict = city_fetcher.fetch_hot_cities()
-        logger.info("热门城市: %s", list(city_dict.keys()))
+    cities = [{"name": k, "code": v} for k, v in browser_mgr.city_dict.items()]
 
+    return jsonify({
+        "browser_connected": browser_mgr.page is not None,
+        "logged_in": browser_mgr.is_logged_in,
+        "automation_running": running,
+        "cookie_count": info.get("cookie_count", 0),
+        "cookie_info": info,
+        "cities": cities,
+    })
+
+@app.route("/api/connect", methods=["POST"])
+def api_connect():
+    """启动浏览器并尝试恢复登录（源文件 4-37行流程）"""
+    try:
+        page = browser_mgr.start()
+        info = browser_mgr.get_cookie_info()
+        return jsonify({
+            "success": True,
+            "logged_in": browser_mgr.is_logged_in,
+            "cookie_count": info.get("cookie_count", 0),
+            "cities": [{"name": k, "code": v} for k, v in browser_mgr.city_dict.items()],
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/check-login", methods=["POST"])
+def api_check_login():
+    """用户确认登录 → 保存cookie → 刷新 → 获取城市（源文件 22-56行流程）"""
+    try:
+        if browser_mgr.confirm_login_and_fetch_cities():
+            info = browser_mgr.get_cookie_info()
+            return jsonify({
+                "logged_in": True,
+                "cookie_count": info.get("cookie_count", 0),
+                "cities": [{"name": k, "code": v} for k, v in browser_mgr.city_dict.items()],
+            })
+        return jsonify({"logged_in": False})
+    except Exception as e:
+        return jsonify({"logged_in": False, "error": str(e)})
+
+@app.route("/api/logout", methods=["POST"])
+def api_logout():
+    """清除 Cookie"""
+    try:
+        browser_mgr.logout()
+        return jsonify({"success": True})
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/cities", methods=["POST"])
+def api_cities():
+    """获取已缓存的城市列表"""
+    # 自动化运行期间禁止切换页面
+    with _engine_lock:
+        if engine and engine.is_running:
+            return jsonify({"success": False, "error": "自动化正在运行"}), 400
+    return jsonify({
+        "success": True,
+        "cities": [{"name": k, "code": v} for k, v in browser_mgr.city_dict.items()],
+    })
+
+@app.route("/api/start-automation", methods=["POST"])
+def api_start_automation():
+    """在后台线程启动自动化"""
+    global _automation_thread
+
+    if not browser_mgr.page or not browser_mgr.is_logged_in:
+        return jsonify({"success": False, "error": "浏览器未连接或未登录"}), 400
+
+    if not browser_mgr.city_dict:
+        return jsonify({"success": False, "error": "城市数据未加载，请重新登录"}), 400
+
+    with _engine_lock:
+        eng = _get_engine()
+        if eng and eng.is_running:
+            return jsonify({"success": False, "error": "自动化已在运行中"}), 400
+
+    data = request.get_json() or {}
+    keywords = data.get("job_keywords", ["数据分析"])
+    cfg = {
+        "job_keywords": keywords if isinstance(keywords, list) else [keywords],
+        "city": data.get("city", "上海"),
+        "message": data.get("message", ""),
+        "scroll_times": int(data.get("scroll_times", 5)),
+        "send_images": data.get("send_images", True),
+    }
+
+    if not cfg["message"]:
+        cfg["message"] = config.DEFAULT_MESSAGE
+
+    image_dir = str(DASHBOARD_DIR) if cfg["send_images"] and DASHBOARD_DIR.exists() else None
+
+    def _run():
+        with _engine_lock:
+            eng = _get_engine()
+            if eng:
+                eng.run(
+                    city_dict=browser_mgr.city_dict,
+                    job_keywords=cfg["job_keywords"],
+                    city=cfg["city"],
+                    message=cfg["message"],
+                    image_dir=image_dir,
+                    scroll_times=cfg["scroll_times"],
+                )
+
+    _automation_thread = threading.Thread(target=_run, daemon=True)
+    _automation_thread.start()
+
+    return jsonify({"success": True, "config": cfg})
+
+@app.route("/api/stop-automation", methods=["POST"])
+def api_stop_automation():
+    with _engine_lock:
+        if engine:
+            engine.stop()
+    return jsonify({"success": True})
+
+@app.route("/api/restart", methods=["POST"])
+def api_restart():
+    """完全重启：停止自动化 → 关闭浏览器 → 重新启动浏览器"""
+    global engine, _automation_thread
+    try:
+        # 1. 停止自动化
+        with _engine_lock:
+            if engine:
+                engine.stop()
+                time.sleep(1)
+                engine = None
+        # 2. 关闭浏览器
+        browser_mgr.quit()
+        # 3. 重新启动浏览器
+        page = browser_mgr.start()
+        info = browser_mgr.get_cookie_info()
+        return jsonify({
+            "success": True,
+            "logged_in": browser_mgr.is_logged_in,
+            "cookie_count": info.get("cookie_count", 0),
+            "cities": [{"name": k, "code": v} for k, v in browser_mgr.city_dict.items()],
+        })
+    except Exception as e:
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route("/api/logs")
+def api_logs():
+    lines = _safe_read_logs()
+    return jsonify({"logs": lines})
+
+# ------------------------------------------------------------
+# Cleanup
+# ------------------------------------------------------------
+def _cleanup():
+    if browser_mgr:
         try:
-            city_code = city_fetcher.get_code(DEFAULT_CITY)
-        except CityNotFound as e:
-            logger.warning(e)
-            sys.exit(1)
+            if engine:
+                engine.stop()
+            browser_mgr.quit()
+        except Exception:
+            pass
 
-        from business.applicant import JobApplicant
+atexit.register(_cleanup)
 
-        applicant = JobApplicant(page)
-        applicant.search_jobs(DEFAULT_JOB, city_code)
-
-        # ======== 4. 滚动加载 & 收集 ========
-        applicant.load_more_jobs()
-        job_urls = applicant.collect_job_urls()
-        job_listings = applicant.parse_job_listings(job_urls)
-
-        logger.info("共发现 %d 个岗位", len(job_listings))
-
-        # ======== 5. 逐个投递 ========
-        for idx, job in enumerate(job_listings, 1):
-            url = job["url"]
-            if not url:
-                logger.warning("岗位 #%d 无链接，跳过", idx)
-                continue
-
-            logger.info("--- 正在处理岗位 #%d/%d: %s ---", idx, len(job_listings), job.get("job_name", url))
-            try:
-                success = applicant.apply_for_job(url, send_images=True)
-                if success:
-                    logger.info("岗位 #%d 处理完成", idx)
-            except Exception as e:
-                logger.error("岗位 #%d 处理异常: %s", idx, e)
-
-            import random
-            delay = random.uniform(3, 8)
-            logger.debug("等待 %.1f 秒后处理下一个", delay)
-            self.page.wait(delay)
-
-    except ZhipinError as e:
-        logger.error("程序异常终止: %s", e)
-        sys.exit(1)
-    except KeyboardInterrupt:
-        logger.info("用户中断")
-    finally:
-        browser_mgr.quit_page()
-        logger.info("程序结束")
-
-
+# ------------------------------------------------------------
+# Entry
+# ------------------------------------------------------------
 if __name__ == "__main__":
-    main()
+    print("=" * 50)
+    print("  BOSS 直聘 自动化助手 v2.0")
+    print(f"  打开浏览器访问: http://{FLASK_HOST}:{FLASK_PORT}")
+    print("=" * 50)
+    app.run(host=FLASK_HOST, port=FLASK_PORT, debug=FLASK_DEBUG, use_reloader=False)
